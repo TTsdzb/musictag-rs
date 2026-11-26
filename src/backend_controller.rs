@@ -353,6 +353,10 @@ pub fn plugin_search_dirs() -> Vec<PathBuf> {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
             push_if_unique(parent.join("plugins").join("sources"));
+            #[cfg(target_os = "macos")]
+            if let Some(contents_dir) = parent.parent() {
+                push_if_unique(contents_dir.join("Resources").join("plugins").join("sources"));
+            }
         }
     }
     if let Some(cfg_dir) = dirs::config_dir() {

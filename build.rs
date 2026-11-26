@@ -15,6 +15,7 @@ fn embed_windows_resources() {
     println!("cargo:rerun-if-changed=assets/app-icon.ico");
     println!("cargo:rerun-if-env-changed=WINDRES");
     println!("cargo:rerun-if-env-changed=RC_PATH");
+    println!("cargo:rerun-if-env-changed=WindowsSdkVerBinPath");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR missing"));
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR missing"));
@@ -78,7 +79,7 @@ fn embed_windows_resources() {
 
     match target_env.as_str() {
         "gnu" => compile_gnu_rc(&rc_path, &out_dir, &target_arch),
-        "msvc" => compile_msvc_rc(&rc_path, &out_dir),
+        "msvc" => compile_msvc_rc(&rc_path, &out_dir, &target_arch),
         other => panic!("unsupported Windows CARGO_CFG_TARGET_ENV: {other:?}"),
     }
 }
@@ -134,15 +135,53 @@ fn compile_gnu_rc(rc_path: &Path, out_dir: &Path, target_arch: &str) {
     println!("cargo:rustc-link-arg-bin=musictag={}", obj_path.display());
 }
 
-fn compile_msvc_rc(rc_path: &Path, out_dir: &Path) {
+fn compile_msvc_rc(rc_path: &Path, out_dir: &Path, target_arch: &str) {
+    let sdk_arch = match target_arch {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        _ => "x86",
+    };
+
     let mut candidates = Vec::new();
     if let Ok(custom) = env::var("RC_PATH") {
         if !custom.trim().is_empty() {
             candidates.push(custom);
         }
     }
+    if let Ok(sdk_bin) = env::var("WindowsSdkVerBinPath") {
+        let base = PathBuf::from(sdk_bin.trim());
+        for cand in [base.join(sdk_arch).join("rc.exe"), base.join("rc.exe")] {
+            if cand.is_file() {
+                candidates.push(cand.to_string_lossy().into_owned());
+            }
+        }
+    }
     candidates.push("rc.exe".to_string());
     candidates.push("rc".to_string());
+    for kit_env in ["ProgramFiles(x86)", "ProgramFiles"] {
+        if let Ok(pf) = env::var(kit_env) {
+            let kits_bin = PathBuf::from(pf).join("Windows Kits").join("10").join("bin");
+            if let Ok(entries) = fs::read_dir(&kits_bin) {
+                let mut versioned: Vec<PathBuf> = entries
+                    .filter_map(Result::ok)
+                    .map(|e| e.path())
+                    .filter(|p| p.is_dir())
+                    .collect();
+                versioned.sort();
+                versioned.reverse();
+                for dir in versioned {
+                    let rc = dir.join(sdk_arch).join("rc.exe");
+                    if rc.is_file() {
+                        candidates.push(rc.to_string_lossy().into_owned());
+                    }
+                }
+            }
+            let unversioned = kits_bin.join(sdk_arch).join("rc.exe");
+            if unversioned.is_file() {
+                candidates.push(unversioned.to_string_lossy().into_owned());
+            }
+        }
+    }
     candidates.push("llvm-rc".to_string());
 
     let tool = find_working_tool(&candidates, "/?").unwrap_or_else(|| {
