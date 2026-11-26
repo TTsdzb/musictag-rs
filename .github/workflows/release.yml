@@ -5,6 +5,17 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      create_draft_release:
+        description: 'Also publish a Draft Release (default: build and upload artifacts only)'
+        type: boolean
+        required: false
+        default: false
+      release_tag:
+        description: 'Optional version/tag label for manual run (leave empty for dev-<sha>)'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -13,11 +24,11 @@ jobs:
   build:
     name: Build (${{ matrix.artifact_name }})
     runs-on: ${{ matrix.os }}
-    fail-fast: false
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             os_family: linux
             arch_label: x86_64
@@ -44,13 +55,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Determine release version
         id: meta
         shell: bash
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+          if [[ -n "${INPUT_RELEASE_TAG:-}" ]]; then
+            version="${INPUT_RELEASE_TAG}"
+          elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
             version="${GITHUB_REF_NAME}"
           else
             version="dev-${GITHUB_SHA::7}"
@@ -85,12 +100,6 @@ jobs:
             libxcb-shape0-dev \
             libxcb-xfixes0-dev \
             libgl1-mesa-dev
-
-      - name: Set up MSVC environment
-        if: matrix.os_family == 'windows'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: amd64
 
       - name: Run unit tests
         if: matrix.run_tests
@@ -217,7 +226,7 @@ jobs:
           done
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist-${{ matrix.artifact_name }}
           path: dist/*
@@ -226,40 +235,59 @@ jobs:
   release:
     name: Publish Draft Release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.create_draft_release)
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
+          pattern: dist-*
           path: dist
           merge-multiple: true
+
+      - name: Determine release metadata
+        id: release_meta
+        shell: bash
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [[ -n "${INPUT_RELEASE_TAG:-}" ]]; then
+            tag_name="${INPUT_RELEASE_TAG}"
+          elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            tag_name="${GITHUB_REF_NAME}"
+          else
+            tag_name="dev-${GITHUB_SHA::7}"
+          fi
+          echo "tag_name=${tag_name}" >> "${GITHUB_OUTPUT}"
 
       - name: Generate SHA256 checksums
         shell: bash
         run: |
           cd dist
-          sha256sum * > SHA256SUMS.txt
+          sha256sum * > ../SHA256SUMS.txt
+          mv ../SHA256SUMS.txt .
           cat SHA256SUMS.txt
 
       - name: Create Draft GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.release_meta.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
           draft: true
-          name: "MusicTag Native ${{ github.ref_name }}"
+          name: "MusicTag Native ${{ steps.release_meta.outputs.tag_name }}"
           generate_release_notes: true
           files: dist/*
           body: |
-            ## MusicTag Native ${{ github.ref_name }}
+            ## MusicTag Native ${{ steps.release_meta.outputs.tag_name }}
 
             ### 产物说明
-            - **Linux (`x86_64`)**: `musictag-${{ github.ref_name }}-linux-x86_64.tar.gz`
-            - **Windows (`x86_64`)**: `musictag-${{ github.ref_name }}-windows-x86_64.zip`（内含图标与版本资源）
-            - **macOS (`Apple Silicon / aarch64`)**: `musictag-${{ github.ref_name }}-macos-aarch64.dmg`
-            - **macOS (`Intel / x86_64`)**: `musictag-${{ github.ref_name }}-macos-x86_64.dmg`
+            - **Linux (`x86_64`)**: `musictag-${{ steps.release_meta.outputs.tag_name }}-linux-x86_64.tar.gz`
+            - **Windows (`x86_64`)**: `musictag-${{ steps.release_meta.outputs.tag_name }}-windows-x86_64.zip`（内含图标与版本资源）
+            - **macOS (`Apple Silicon / aarch64`)**: `musictag-${{ steps.release_meta.outputs.tag_name }}-macos-aarch64.dmg`
+            - **macOS (`Intel / x86_64`)**: `musictag-${{ steps.release_meta.outputs.tag_name }}-macos-x86_64.dmg`
 
             > **macOS 首次打开提示说明**：本版本中的 `.app` 使用 **ad-hoc 本地自签名（`codesign --sign -`）**，未经过 Apple 公证（Notarization）。如系统提示“已损坏”或“无法验证开发者”，请在拖入「应用程序」目录后于终端执行：
             > ```sh
