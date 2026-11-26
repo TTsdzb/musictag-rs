@@ -1,0 +1,152 @@
+import { Theme, ThemePreference } from "../theme.slint";
+import { ActiveDialog, AppState, AppLogic } from "../state.slint";
+import { IconButton, ToolbarDivider } from "primitives.slint";
+
+export component AppToolbar inherits Rectangle {
+    callback focus-requested();
+
+    height: 40px;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    background: Theme.bg-panel;
+
+    HorizontalLayout {
+        padding-left: Theme.sp-sm;
+        padding-right: Theme.sp-sm;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        spacing: 2px;
+
+        // 目录组
+        IconButton {
+            icon: @image-url("../assets/icons/folder-open.svg");
+            label: "改变目录";
+            compact: true;
+            clicked => { AppLogic.trigger-action("change-dir"); root.focus-requested(); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/folder-plus.svg");
+            label: "添加目录";
+            compact: true;
+            clicked => { AppLogic.trigger-action("add-dir"); root.focus-requested(); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/folder-cog.svg");
+            label: "管理目录";
+            compact: true;
+            clicked => { AppLogic.open-dialog(ActiveDialog.manage-dirs); }
+        }
+
+        ToolbarDivider {}
+
+        // 编辑组
+        IconButton {
+            icon: @image-url("../assets/icons/save.svg");
+            label: "保存";
+            compact: true;
+            active: AppState.modified-count > 0;
+            clicked => { AppLogic.save-selected(); root.focus-requested(); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/refresh-cw.svg");
+            label: "刷新";
+            compact: true;
+            clicked => { AppLogic.trigger-action("refresh"); root.focus-requested(); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/undo-2.svg");
+            label: "撤消";
+            compact: true;
+            clicked => { AppLogic.revert-selected(); root.focus-requested(); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/eraser.svg");
+            label: "清除";
+            compact: true;
+            danger: true;
+            clicked => { AppLogic.trigger-action("clear-tags"); root.focus-requested(); }
+        }
+
+        ToolbarDivider {}
+
+        // 刮削组
+        IconButton {
+            icon: @image-url("../assets/icons/sparkles.svg");
+            label: "自动匹配";
+            compact: true;
+            clicked => { AppLogic.open-dialog(ActiveDialog.auto-match); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/search.svg");
+            label: "组合搜索";
+            compact: true;
+            clicked => { AppLogic.open-dialog(ActiveDialog.combo-search); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/file-text.svg");
+            label: "歌词搜索";
+            compact: true;
+            clicked => { AppLogic.open-dialog(ActiveDialog.lyric-search); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/image.svg");
+            label: "封面搜索";
+            compact: true;
+            clicked => { AppLogic.open-dialog(ActiveDialog.cover-search); }
+        }
+
+        ToolbarDivider {}
+
+        // 工具组
+        IconButton {
+            icon: @image-url("../assets/icons/file-edit.svg");
+            label: "文件名";
+            compact: true;
+            clicked => { AppLogic.open-dialog(ActiveDialog.filename-rel); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/audio-waveform.svg");
+            label: "ReplayGain";
+            compact: true;
+            clicked => { AppLogic.trigger-action("replaygain"); }
+        }
+        IconButton {
+            icon: @image-url("../assets/icons/settings.svg");
+            label: "选项";
+            compact: true;
+            clicked => { AppLogic.open-dialog(ActiveDialog.options); }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+
+        // Right-aligned quick theme switcher
+        HorizontalLayout {
+            spacing: 2px;
+            horizontal-stretch: 0;
+
+            IconButton {
+                icon: @image-url("../assets/icons/monitor.svg");
+                label: "跟随系统";
+                compact: true;
+                active: Theme.preference == ThemePreference.system;
+                clicked => { AppLogic.set-theme(0); root.focus-requested(); }
+            }
+            IconButton {
+                icon: @image-url("../assets/icons/sun.svg");
+                label: "浅色";
+                compact: true;
+                active: Theme.preference == ThemePreference.light;
+                clicked => { AppLogic.set-theme(1); root.focus-requested(); }
+            }
+            IconButton {
+                icon: @image-url("../assets/icons/moon.svg");
+                label: "深色";
+                compact: true;
+                active: Theme.preference == ThemePreference.dark;
+                clicked => { AppLogic.set-theme(2); root.focus-requested(); }
+            }
+        }
+    }
+}

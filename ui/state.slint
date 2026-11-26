@@ -1,0 +1,322 @@
+export enum ActiveDialog {
+    none,
+    combo-search,
+    lyric-search,
+    cover-search,
+    cover-resolution,
+    lyric-editor,
+    adjust-timetag,
+    find-replace,
+    filename-rel,
+    options,
+    auto-match,
+    customize-columns,
+    manage-dirs,
+    charset-fix,
+    tags-history,
+    progress,
+    about,
+}
+
+export struct TrackItem {
+    id: int,
+    filename: string,
+    filedir: string,
+    tag-types: string,
+    title: string,
+    artist: string,
+    album: string,
+    album-artist: string,
+    year: string,
+    track-str: string,
+    disc-str: string,
+    genre: string,
+    composer: string,
+    lyricist: string,
+    comment: string,
+    has-163-key: bool,
+    netease-id: string,
+    has-picture: bool,
+    cover-info: string,
+    cover: image,
+    has-lyrics: bool,
+    lyrics-preview: string,
+    lyrics: string,
+    is-instrumental: bool,
+    rg-track-gain: string,
+    rg-track-peak: string,
+    rg-album-gain: string,
+    rg-album-peak: string,
+    bit-per-sample: string,
+    channels: string,
+    sample-rate: string,
+    bitrate: string,
+    duration: string,
+    update-time: string,
+    modified: bool,
+    selected: bool,
+}
+
+export struct SearchCandidate {
+    song-id: string,
+    title: string,
+    artist: string,
+    album: string,
+    year: string,
+    duration: string,
+    source: string,
+    cover-size: string,
+    cover: image,
+    has-translation: bool,
+    is-instrumental: bool,
+    lyric-preview: string,
+}
+
+export struct CoverCandidate {
+    source: string,
+    resolution: string,
+    size-kb: string,
+    format: string,
+    title: string,
+    cover: image,
+}
+
+export struct ColumnConfigItem {
+    key: string,
+    label: string,
+    visible: bool,
+    width: int,
+}
+
+export struct DirEntry {
+    path: string,
+    include-subdirs: bool,
+    file-count: int,
+}
+
+export struct HistoryEntry {
+    timestamp: string,
+    summary: string,
+    title: string,
+    artist: string,
+    album: string,
+    comment-has-163: bool,
+}
+
+export struct RegexGroupItem {
+    group-index: int,
+    target-field: string,
+}
+
+export struct FilenamePreviewItem {
+    before: string,
+    after: string,
+    status: string,
+}
+
+export struct AutoMatchRow {
+    filename: string,
+    matched-title: string,
+    matched-artist: string,
+    status: string,
+    detail: string,
+}
+
+export struct CharsetPreviewRow {
+    field: string,
+    original: string,
+    converted: string,
+}
+
+export struct SourceItem {
+    id: string,
+    name: string,
+    version: string,
+    description: string,
+    builtin: bool,
+    enabled: bool,
+    supports-combo: bool,
+    supports-lyrics: bool,
+    supports-cover: bool,
+    supports-163: bool,
+}
+
+export struct InspectorField {
+    text: string,
+    mode: int,
+    mixed: bool,
+}
+
+export global AppState {
+    in-out property <[TrackItem]> tracks;
+    in-out property <int> selected-index: 0;
+    in-out property <int> selected-count: 0;
+    in-out property <int> modified-count: 0;
+    in-out property <string> working-dir: "~/Music";
+    in-out property <int> filter-field-index: 0;
+    in-out property <string> filter-keyword: "";
+    in-out property <ActiveDialog> active-dialog: ActiveDialog.none;
+    in-out property <int> options-tab-index: 0;
+    in-out property <int> filename-rel-tab-index: 0;
+    in-out property <string> status-message: "";
+    in-out property <bool> is-searching: false;
+
+    in-out property <[SearchCandidate]> search-candidates;
+    in-out property <int> selected-candidate-index: 0;
+    in-out property <[CoverCandidate]> cover-candidates;
+    in-out property <int> selected-cover-index: 0;
+    in-out property <[ColumnConfigItem]> columns;
+    in-out property <[DirEntry]> dirs;
+    in-out property <[HistoryEntry]> history;
+    in-out property <[RegexGroupItem]> regex-groups;
+    in-out property <[FilenamePreviewItem]> filename-previews;
+    in-out property <[AutoMatchRow]> auto-match-rows;
+    in-out property <[CharsetPreviewRow]> charset-rows;
+    in-out property <[SourceItem]> source-items;
+    in-out property <int> selected-source-index: 0;
+
+    // Options - Tag sources & formatting
+    in-out property <bool> opt-write-163-key: true;
+    in-out property <string> opt-artist-sep: ";";
+    in-out property <int> opt-id3v2-ver: 1;
+
+    // Options - Lyrics download & processing
+    in-out property <bool> opt-dl-trans: true;
+    in-out property <bool> opt-dont-dl-orig: false;
+    in-out property <int> opt-trans-format: 0;
+    in-out property <string> opt-trans-connector: "\\n";
+    in-out property <bool> opt-delete-head-tag: true;
+    in-out property <bool> opt-delete-blank-lines: true;
+    in-out property <bool> opt-reformat-timetag: true;
+    in-out property <bool> opt-remove-timetag: false;
+    in-out property <bool> opt-skip-instrumental: true;
+    in-out property <int> opt-zh-conv: 0;
+
+    // Options - ReplayGain
+    in-out property <int> opt-rg-mode: 0;
+    in-out property <string> opt-rg-target-lufs: "-18.0";
+    in-out property <bool> opt-rg-clip-prevent: true;
+    in-out property <bool> opt-rg-lowercase-flac: false;
+
+    // Options - Misc 1 (LRC & Cover & File filtering)
+    in-out property <bool> opt-save-lrc-with-tag: false;
+    in-out property <string> opt-lrc-dir: "";
+    in-out property <int> opt-lrc-naming: 0;
+    in-out property <string> opt-lrc-encoding: "UTF-8";
+    in-out property <bool> opt-keep-mtime: false;
+    in-out property <string> opt-pic-res-limit: "0";
+    in-out property <string> opt-pic-size-limit: "2000";
+    in-out property <int> opt-pic-format: 0;
+    in-out property <bool> opt-ignore-video: true;
+    in-out property <int> opt-duration-filter: 0;
+    in-out property <string> opt-file-exts: ".aac;.aif;.aifc;.aiff;.ape;.dff;.dsf;.flac;.m4a;.mp3;.mp4;.mpc;.ogg;.opus;.tak;.wav;.wma;.wv;";
+
+    // Options - Misc 2 (Search, Network, Tray, Updates)
+    in-out property <int> opt-search-cond-title-mode: 0;
+    in-out property <bool> opt-search-use-artist: true;
+    in-out property <bool> opt-search-use-album: true;
+    in-out property <int> opt-search-limit: 10;
+    in-out property <int> opt-thread-count: 4;
+    in-out property <bool> opt-overwrite-cover: true;
+    in-out property <bool> opt-minimize-tray: false;
+    in-out property <bool> opt-always-tray: false;
+    in-out property <bool> opt-check-updates: true;
+
+    // Lyric editor & Timetag & Find/Replace
+    in-out property <string> lyric-editor-text: "";
+    in-out property <string> adjust-offset-ms: "500";
+    in-out property <string> find-text: "";
+    in-out property <string> replace-text: "";
+    in-out property <bool> find-match-case: false;
+
+    // Filename <-> Tag & Charset
+    in-out property <int> filename-mode: 0;
+    in-out property <int> filename-pattern-index: 0;
+    in-out property <string> filename-custom-pattern: "%artist% - %title%";
+    in-out property <string> filename-regex-input: "^(\\d*)\\. (.*) - (.*)$";
+    in-out property <bool> filename-rename-extra: true;
+    in-out property <int> charset-encoding-index: 0;
+
+    // Progress dialog
+    in-out property <string> progress-title: "";
+    in-out property <string> progress-file: "";
+    in-out property <float> progress-value: 0.0;
+    in-out property <int> progress-ok: 0;
+    in-out property <int> progress-fail: 0;
+    in-out property <int> progress-skip: 0;
+    in-out property <int> progress-total: 0;
+
+    // Combo search query & overwrite toggles
+    in-out property <string> combo-query-title: "";
+    in-out property <string> combo-query-artist: "";
+    in-out property <string> combo-query-album: "";
+    in-out property <string> combo-query-id: "";
+    in-out property <bool> combo-overwrite-title: true;
+    in-out property <bool> combo-overwrite-artist: true;
+    in-out property <bool> combo-overwrite-album: true;
+    in-out property <bool> combo-overwrite-album-artist: true;
+    in-out property <bool> combo-overwrite-year: true;
+    in-out property <bool> combo-overwrite-track: true;
+    in-out property <bool> combo-overwrite-disc: true;
+    in-out property <bool> combo-overwrite-genre: true;
+    in-out property <bool> combo-overwrite-comment: true;
+    in-out property <bool> combo-overwrite-lyrics: true;
+    in-out property <bool> combo-overwrite-cover: true;
+
+    // Cover resolution dialog
+    in-out property <string> cover-target-width: "1000";
+    in-out property <string> cover-target-height: "1000";
+    in-out property <string> cover-target-max-kb: "512";
+    in-out property <bool> cover-keep-aspect: true;
+    in-out property <int> cover-format-index: 0;
+
+    // Table selections
+    in-out property <int> selected-history-index: 0;
+    in-out property <int> selected-column-index: 0;
+    in-out property <int> selected-dir-index: 0;
+
+    // Inspector tri-state & multi-select fields (mode: 0 = value, 1 = keep, 2 = clear)
+    in-out property <bool> is-multi-select: false;
+    in-out property <InspectorField> field-title: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-artist: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-album: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-album-artist: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-year: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-track: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-disc: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-genre: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-composer: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-lyricist: { text: "", mode: 1, mixed: false };
+    in-out property <InspectorField> field-comment: { text: "", mode: 1, mixed: false };
+    in-out property <int> field-cover-mode: 1;
+    in-out property <bool> field-cover-mixed: false;
+    in-out property <int> field-lyrics-mode: 1;
+    in-out property <bool> field-lyrics-mixed: false;
+}
+
+export global AppLogic {
+    callback open-dialog(ActiveDialog);
+    callback close-dialog();
+    callback select-track(int);
+    callback toggle-track-selected(int);
+    callback select-all();
+    callback unselect-all();
+    callback invert-selection();
+    callback save-selected();
+    callback revert-selected();
+    callback set-theme(int);
+    callback update-filter(int, string);
+    callback edit-selected-field(string, string);
+    callback set-field-mode(string, int);
+    callback apply-combo-candidate(int, bool);
+    callback apply-lyric-candidate(int);
+    callback apply-cover-candidate(int);
+    callback lyric-action(string);
+    callback move-column(int, int);
+    callback reset-columns();
+    callback toggle-column(int);
+    callback toggle-source(int);
+    callback move-source(int, int);
+    callback reload-plugins();
+    callback trigger-action(string);
+}

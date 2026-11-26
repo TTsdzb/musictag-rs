@@ -1,0 +1,1469 @@
+import { ListView, ScrollView } from "std-widgets.slint";
+import { Theme, ThemePreference } from "../theme.slint";
+import { AppState, AppLogic, SourceItem } from "../state.slint";
+import {
+    ActionButton,
+    CheckboxItem,
+    DialogOverlay,
+    DropdownSelect,
+    RadioItem,
+    SectionHeader,
+    StatusBadge,
+    TabBar,
+    TextInputBox,
+} from "../components/primitives.slint";
+
+component OptionSectionCard inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    border-radius: Theme.r-md;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: Theme.bg-surface-alt;
+    clip: true;
+
+    VerticalLayout {
+        SectionHeader {
+            title: root.title;
+            subtitle: root.subtitle;
+        }
+
+        VerticalLayout {
+            padding-left: Theme.sp-md;
+            padding-right: Theme.sp-md;
+            padding-top: 8px;
+            padding-bottom: 8px;
+            spacing: 6px;
+            @children
+        }
+    }
+}
+
+component SourceRegistryPanel inherits Rectangle {
+    private property <bool> has-selected:
+        AppState.selected-source-index >= 0 && AppState.selected-source-index < AppState.source-items.length;
+    private property <SourceItem> selected-source:
+        root.has-selected ? AppState.source-items[AppState.selected-source-index] : {
+            id: "",
+            name: "",
+            version: "",
+            description: "",
+            builtin: false,
+            enabled: false,
+            supports-combo: false,
+            supports-lyrics: false,
+            supports-cover: false,
+            supports-163: false,
+        };
+
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    height: 262px;
+    border-radius: Theme.r-md;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: Theme.bg-panel;
+    clip: true;
+
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+
+        SectionHeader {
+            title: "标签源优先级与插件管理";
+            subtitle: "按自上而下顺序尝试匹配组合标签、歌词与封面；自动扫描 plugins/sources/* QuickJS 插件";
+
+            StatusBadge {
+                text: "共 \{AppState.source-items.length} 个源";
+                kind: AppState.source-items.length > 0 ? "accent" : "neutral";
+            }
+
+            ActionButton {
+                text: "重新扫描插件";
+                icon: @image-url("../assets/icons/refresh-cw.svg");
+                has-icon: true;
+                variant: "secondary";
+                clicked => {
+                    AppLogic.reload-plugins();
+                }
+            }
+        }
+
+        if AppState.source-items.length == 0 : Rectangle {
+            vertical-stretch: 1;
+            background: Theme.bg-panel;
+
+            Text {
+                text: "未发现可用标签源，请点击右上角「重新扫描插件」";
+                font-family: Theme.font-family;
+                font-size: Theme.font-sm;
+                color: Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        if AppState.source-items.length > 0 : ListView {
+            vertical-stretch: 1;
+
+            for src[idx] in AppState.source-items : Rectangle {
+                property <bool> src-enabled: src.enabled;
+                changed src-enabled => {
+                    src-cb.checked = self.src-enabled;
+                }
+
+                height: 54px;
+                background: idx == AppState.selected-source-index
+                    ? Theme.bg-selected
+                    : (src-ta.has-hover ? Theme.bg-hover : (Math.mod(idx, 2) == 0 ? Theme.bg-panel : Theme.bg-surface-alt));
+                animate background { duration: 120ms; }
+
+                src-ta := TouchArea {
+                    mouse-cursor: MouseCursor.pointer;
+                    clicked => {
+                        AppState.selected-source-index = idx;
+                    }
+                }
+
+                if idx == AppState.selected-source-index : Rectangle {
+                    x: 0px;
+                    y: 0px;
+                    width: 3px;
+                    height: 100%;
+                    background: src.id == "netease" ? Theme.netease : Theme.accent;
+                }
+
+                HorizontalLayout {
+                    padding-left: Theme.sp-md;
+                    padding-right: Theme.sp-md;
+                    spacing: Theme.sp-sm;
+
+                    Text {
+                        width: 26px;
+                        horizontal-stretch: 0;
+                        text: "#\{idx + 1}";
+                        font-family: Theme.mono-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 700;
+                        color: (idx == 0 && src.id == "netease") ? Theme.netease : Theme.text-muted;
+                        vertical-alignment: center;
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 0;
+
+                        src-cb := CheckboxItem {
+                            label: "";
+                            checked: src.enabled;
+                            toggled => {
+                                AppState.selected-source-index = idx;
+                                AppLogic.toggle-source(idx);
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 3px;
+
+                        HorizontalLayout {
+                            spacing: 6px;
+
+                            Text {
+                                text: src.name;
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-sm;
+                                font-weight: 600;
+                                color: Theme.text-primary;
+                                vertical-alignment: center;
+                                horizontal-stretch: 0;
+                            }
+
+                            StatusBadge {
+                                text: src.id;
+                                kind: src.id == "netease" ? "netease" : "neutral";
+                            }
+
+                            StatusBadge {
+                                text: src.builtin ? "内置" : "QuickJS";
+                                kind: src.builtin ? "accent" : "neutral";
+                            }
+
+                            if src.version != "" : Text {
+                                text: "v\{src.version}";
+                                font-family: Theme.mono-family;
+                                font-size: Theme.font-xs;
+                                color: Theme.text-muted;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+                        }
+
+                        if src.description != "" : Text {
+                            text: src.description;
+                            font-family: Theme.font-family;
+                            font-size: Theme.font-xs;
+                            color: Theme.text-secondary;
+                            overflow: elide;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        horizontal-stretch: 0;
+                        spacing: 4px;
+
+                        if src.supports-combo : VerticalLayout {
+                            alignment: center;
+                            StatusBadge {
+                                text: "组合";
+                                kind: "accent";
+                            }
+                        }
+
+                        if src.supports-lyrics : VerticalLayout {
+                            alignment: center;
+                            StatusBadge {
+                                text: "歌词";
+                                kind: "success";
+                            }
+                        }
+
+                        if src.supports-cover : VerticalLayout {
+                            alignment: center;
+                            StatusBadge {
+                                text: "封面";
+                                kind: "neutral";
+                            }
+                        }
+
+                        if src.supports-163 : VerticalLayout {
+                            alignment: center;
+                            StatusBadge {
+                                text: "163 key";
+                                kind: "netease";
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            StatusBadge {
+                                text: src.enabled ? "启用" : "停用";
+                                kind: src.enabled ? "success" : "neutral";
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    width: 100%;
+                    background: Theme.border.with-alpha(0.45);
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+            vertical-stretch: 0;
+        }
+
+        Rectangle {
+            height: 38px;
+            background: Theme.bg-surface-alt;
+            vertical-stretch: 0;
+
+            HorizontalLayout {
+                padding-left: Theme.sp-md;
+                padding-right: Theme.sp-md;
+                spacing: Theme.sp-sm;
+
+                Text {
+                    text: root.has-selected
+                        ? "已选 #\{AppState.selected-source-index + 1} \{root.selected-source.name} (\{root.selected-source.id}) · 使用右侧按钮调整匹配顺序"
+                        : "优先顺序: 自上而下尝试匹配 · 点击选择标签源调整优先级";
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-xs;
+                    color: Theme.text-muted;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+
+                    ActionButton {
+                        text: "上移";
+                        icon: @image-url("../assets/icons/chevron-up.svg");
+                        has-icon: true;
+                        variant: "secondary";
+                        enabled: AppState.selected-source-index > 0;
+                        clicked => {
+                            AppLogic.move-source(AppState.selected-source-index, -1);
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+
+                    ActionButton {
+                        text: "下移";
+                        icon: @image-url("../assets/icons/chevron-down.svg");
+                        has-icon: true;
+                        variant: "secondary";
+                        enabled: AppState.selected-source-index >= 0 && AppState.selected-source-index + 1 < AppState.source-items.length;
+                        clicked => {
+                            AppLogic.move-source(AppState.selected-source-index, 1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+component ThemeChoiceCard inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <image> icon;
+    in property <bool> selected;
+    in property <color> preview-bg;
+    in property <color> preview-fg;
+    callback clicked();
+
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    height: 58px;
+    border-radius: Theme.r-md;
+    border-width: root.selected ? 2px : 1px;
+    border-color: root.selected ? Theme.accent : (ta.has-hover ? Theme.border-strong : Theme.border);
+    background: root.selected ? Theme.bg-selected : (ta.has-hover ? Theme.bg-hover : Theme.bg-panel);
+    animate background, border-color { duration: 150ms; }
+
+    ta := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    HorizontalLayout {
+        padding: Theme.sp-sm;
+        padding-left: Theme.sp-md;
+        padding-right: Theme.sp-md;
+        spacing: Theme.sp-sm;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+
+            Rectangle {
+                width: 40px;
+                height: 40px;
+                border-radius: Theme.r-md;
+                border-width: 1px;
+                border-color: root.selected ? Theme.accent : Theme.border;
+                background: root.preview-bg;
+
+                Image {
+                    source: root.icon;
+                    width: 20px;
+                    height: 20px;
+                    image-fit: contain;
+                    colorize: root.preview-fg;
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            spacing: 4px;
+
+            HorizontalLayout {
+                spacing: Theme.sp-xs;
+
+                Text {
+                    text: root.title;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-sm;
+                    font-weight: root.selected ? 700 : 600;
+                    color: root.selected ? Theme.accent : Theme.text-primary;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+
+                if root.selected : VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Image {
+                        source: @image-url("../assets/icons/check.svg");
+                        width: 14px;
+                        height: 14px;
+                        image-fit: contain;
+                        colorize: Theme.accent;
+                    }
+                }
+            }
+
+            Text {
+                text: root.subtitle;
+                font-family: Theme.font-family;
+                font-size: Theme.font-xs;
+                color: Theme.text-secondary;
+                overflow: elide;
+            }
+        }
+    }
+}
+
+component BilingualFormatCard inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    in property <bool> recommended: false;
+    callback clicked();
+
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    min-height: 62px;
+    border-radius: Theme.r-md;
+    border-width: 1px;
+    border-color: root.selected ? Theme.accent : (ta.has-hover ? Theme.border-strong : Theme.border);
+    background: root.selected ? Theme.bg-selected-muted : (ta.has-hover ? Theme.bg-hover : Theme.bg-panel);
+    animate background, border-color { duration: 150ms; }
+
+    ta := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    HorizontalLayout {
+        padding: Theme.sp-sm;
+        padding-left: Theme.sp-md;
+        padding-right: Theme.sp-md;
+        spacing: Theme.sp-sm;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+
+            RadioItem {
+                label: root.label;
+                selected: root.selected;
+                clicked => {
+                    root.clicked();
+                }
+            }
+        }
+
+        if root.recommended : VerticalLayout {
+            alignment: start;
+            horizontal-stretch: 0;
+            padding-top: 2px;
+
+            StatusBadge {
+                text: "推荐 · 默认";
+                kind: "accent";
+            }
+        }
+    }
+}
+
+export component OptionsDialog {
+    width: 100%;
+    height: 100%;
+
+    private property <int> lrc-encoding-index:
+        AppState.opt-lrc-encoding == "UTF-8 BOM" ? 1 :
+        AppState.opt-lrc-encoding == "GBK" ? 2 :
+        AppState.opt-lrc-encoding == "UTF-16 LE" ? 3 : 0;
+
+    DialogOverlay {
+        title: "选项设置";
+        icon: @image-url("../assets/icons/settings.svg");
+        has-icon: true;
+        dialog-width: 860px;
+        dialog-height: 620px;
+        body-padding: 0px;
+        body-spacing: 0px;
+        close => {
+            AppLogic.close-dialog();
+        }
+
+        TabBar {
+            tabs: ["标签源", "歌词下载", "杂项 1", "杂项 2 / 外观", "ReplayGain"];
+            current-index <=> AppState.options-tab-index;
+        }
+
+        sv := ScrollView {
+            vertical-stretch: 1;
+            content-width: sv.visible-width;
+
+            VerticalLayout {
+                x: 0px;
+                y: 0px;
+                width: sv.visible-width;
+                padding: Theme.sp-md;
+                spacing: Theme.sp-sm;
+
+                // Tab 0: 标签源
+                if AppState.options-tab-index == 0 : VerticalLayout {
+                    spacing: Theme.sp-md;
+
+                    SourceRegistryPanel {}
+
+                    OptionSectionCard {
+                        title: "网络搜索条件与数量限制";
+                        subtitle: "所有标签源按自上而下顺序尝试匹配；网易云源固定置顶并支持写入 163 key";
+
+                        GridLayout {
+                            spacing-horizontal: Theme.sp-lg;
+                            spacing-vertical: Theme.sp-sm;
+
+                            Row {
+                                Text {
+                                    text: "网络搜索条件:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    font-weight: 600;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: Theme.sp-lg;
+                                    horizontal-stretch: 1;
+
+                                    RadioItem {
+                                        label: "标题或文件名";
+                                        selected: AppState.opt-search-cond-title-mode == 0;
+                                        clicked => {
+                                            AppState.opt-search-cond-title-mode = 0;
+                                        }
+                                    }
+
+                                    RadioItem {
+                                        label: "仅文件名";
+                                        selected: AppState.opt-search-cond-title-mode == 1;
+                                        clicked => {
+                                            AppState.opt-search-cond-title-mode = 1;
+                                        }
+                                    }
+
+                                    CheckboxItem {
+                                        label: "使用艺术家";
+                                        checked <=> AppState.opt-search-use-artist;
+                                    }
+
+                                    CheckboxItem {
+                                        label: "使用专辑";
+                                        checked <=> AppState.opt-search-use-album;
+                                    }
+                                }
+                            }
+
+                            Row {
+                                Text {
+                                    text: "网络搜索项限制:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    font-weight: 600;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: Theme.sp-lg;
+                                    horizontal-stretch: 1;
+
+                                    RadioItem {
+                                        label: "10 项";
+                                        selected: AppState.opt-search-limit == 10;
+                                        clicked => {
+                                            AppState.opt-search-limit = 10;
+                                        }
+                                    }
+
+                                    RadioItem {
+                                        label: "25 项";
+                                        selected: AppState.opt-search-limit == 25;
+                                        clicked => {
+                                            AppState.opt-search-limit = 25;
+                                        }
+                                    }
+
+                                    RadioItem {
+                                        label: "50 项";
+                                        selected: AppState.opt-search-limit == 50;
+                                        clicked => {
+                                            AppState.opt-search-limit = 50;
+                                        }
+                                    }
+
+                                    RadioItem {
+                                        label: "100 项";
+                                        selected: AppState.opt-search-limit == 100;
+                                        clicked => {
+                                            AppState.opt-search-limit = 100;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Tab 1: 歌词下载
+                if AppState.options-tab-index == 1 : VerticalLayout {
+                    spacing: Theme.sp-md;
+
+                    OptionSectionCard {
+                        title: "双语歌词与翻译格式";
+                        subtitle: "控制网易云等支持译文的歌词源在写入标签或 .lrc 时的排版方式";
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-lg;
+
+                            CheckboxItem {
+                                label: "下载翻译";
+                                checked <=> AppState.opt-dl-trans;
+                            }
+
+                            CheckboxItem {
+                                label: "不下载原词(如果翻译存在)";
+                                checked <=> AppState.opt-dont-dl-orig;
+                            }
+                        }
+
+                        GridLayout {
+                            spacing: Theme.sp-sm;
+
+                            Row {
+                                BilingualFormatCard {
+                                    label: "[00:05.12]原词\n[00:05.12]翻译词";
+                                    selected: AppState.opt-trans-format == 0;
+                                    recommended: true;
+                                    clicked => {
+                                        AppState.opt-trans-format = 0;
+                                    }
+                                }
+
+                                BilingualFormatCard {
+                                    label: "[00:05.12]原词 翻译词";
+                                    selected: AppState.opt-trans-format == 1;
+                                    clicked => {
+                                        AppState.opt-trans-format = 1;
+                                    }
+                                }
+                            }
+
+                            Row {
+                                BilingualFormatCard {
+                                    label: "[00:05.12]原词\n[00:07.05]翻译词\n[00:07.06]原词2";
+                                    selected: AppState.opt-trans-format == 2;
+                                    clicked => {
+                                        AppState.opt-trans-format = 2;
+                                    }
+                                }
+
+                                BilingualFormatCard {
+                                    label: "[00:05.12]翻译词\n[00:05.12]原词";
+                                    selected: AppState.opt-trans-format == 3;
+                                    clicked => {
+                                        AppState.opt-trans-format = 3;
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-lg;
+
+                            HorizontalLayout {
+                                spacing: Theme.sp-sm;
+                                horizontal-stretch: 0;
+
+                                Text {
+                                    text: "原词与翻译连接符:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                TextInputBox {
+                                    width: 110px;
+                                    horizontal-stretch: 0;
+                                    text <=> AppState.opt-trans-connector;
+                                    monospace: true;
+                                    placeholder: "\\n";
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: Theme.sp-md;
+                                horizontal-stretch: 1;
+
+                                Text {
+                                    text: "中文简繁体转换:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                RadioItem {
+                                    label: "未设置";
+                                    selected: AppState.opt-zh-conv == 0;
+                                    clicked => {
+                                        AppState.opt-zh-conv = 0;
+                                    }
+                                }
+
+                                RadioItem {
+                                    label: "繁体转简体";
+                                    selected: AppState.opt-zh-conv == 1;
+                                    clicked => {
+                                        AppState.opt-zh-conv = 1;
+                                    }
+                                }
+
+                                RadioItem {
+                                    label: "简体转繁体";
+                                    selected: AppState.opt-zh-conv == 2;
+                                    clicked => {
+                                        AppState.opt-zh-conv = 2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    OptionSectionCard {
+                        title: "歌词清理与纯音乐保护规则";
+                        subtitle: "下载或自动匹配歌词时自动应用以下清洗策略";
+
+                        GridLayout {
+                            spacing-horizontal: Theme.sp-lg;
+                            spacing-vertical: Theme.sp-xs;
+
+                            Row {
+                                CheckboxItem {
+                                    label: "删除头部标签 (过滤作词/作曲/编曲等)";
+                                    checked <=> AppState.opt-delete-head-tag;
+                                }
+
+                                CheckboxItem {
+                                    label: "删除空白文字的行";
+                                    checked <=> AppState.opt-delete-blank-lines;
+                                }
+                            }
+
+                            Row {
+                                CheckboxItem {
+                                    label: "格式化时间轴 (三位毫秒转二位)";
+                                    checked <=> AppState.opt-reformat-timetag;
+                                }
+
+                                CheckboxItem {
+                                    label: "删除时间轴";
+                                    checked <=> AppState.opt-remove-timetag;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-sm;
+
+                            CheckboxItem {
+                                label: "包含“纯音乐，请欣赏”或标题含纯音乐/伴奏时不写入歌词";
+                                checked <=> AppState.opt-skip-instrumental;
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 0;
+                                StatusBadge {
+                                    text: "纯音乐跳过";
+                                    kind: "warning";
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                        }
+                    }
+                }
+
+                // Tab 2: 杂项 1
+                if AppState.options-tab-index == 2 : VerticalLayout {
+                    spacing: Theme.sp-md;
+
+                    OptionSectionCard {
+                        title: "注释与标签写入";
+                        subtitle: "控制标签编码版本、多歌手分隔符与网易云 163 key 写入";
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-sm;
+
+                            CheckboxItem {
+                                label: "注释标签写入 \"163 key\" 标记 (网易云标签源)";
+                                checked <=> AppState.opt-write-163-key;
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 0;
+                                StatusBadge {
+                                    text: "163 key";
+                                    kind: "netease";
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                        }
+
+                        GridLayout {
+                            spacing-horizontal: Theme.sp-lg;
+                            spacing-vertical: Theme.sp-sm;
+
+                            Row {
+                                Text {
+                                    text: "艺术家连接符:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: Theme.sp-sm;
+                                    horizontal-stretch: 1;
+
+                                    TextInputBox {
+                                        width: 90px;
+                                        horizontal-stretch: 0;
+                                        text <=> AppState.opt-artist-sep;
+                                        monospace: true;
+                                        placeholder: ";";
+                                    }
+
+                                    Text {
+                                        text: "用于连接多个艺术家 (如 初音ミク;n-buna)";
+                                        font-family: Theme.font-family;
+                                        font-size: Theme.font-xs;
+                                        color: Theme.text-muted;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                        horizontal-stretch: 1;
+                                    }
+                                }
+                            }
+
+                            Row {
+                                Text {
+                                    text: "ID3v2 版本:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: Theme.sp-sm;
+                                    horizontal-stretch: 1;
+
+                                    DropdownSelect {
+                                        width: 160px;
+                                        horizontal-stretch: 0;
+                                        model: ["ID3v2.3", "ID3v2.4"];
+                                        current-index <=> AppState.opt-id3v2-ver;
+                                    }
+
+                                    Text {
+                                        text: "MP3 标签写入标准 (推荐 ID3v2.4 UTF-8)";
+                                        font-family: Theme.font-family;
+                                        font-size: Theme.font-xs;
+                                        color: Theme.text-muted;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                        horizontal-stretch: 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    OptionSectionCard {
+                        title: "内置图片限制";
+                        subtitle: "自动缩放或压缩写入音频文件的封面图片，0 表示不限制";
+
+                        GridLayout {
+                            spacing-horizontal: Theme.sp-lg;
+                            spacing-vertical: Theme.sp-sm;
+
+                            Row {
+                                Text {
+                                    text: "内置图片分辨率上限:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: Theme.sp-sm;
+                                    horizontal-stretch: 1;
+
+                                    TextInputBox {
+                                        width: 110px;
+                                        horizontal-stretch: 0;
+                                        text <=> AppState.opt-pic-res-limit;
+                                        monospace: true;
+                                        placeholder: "0";
+                                    }
+
+                                    Text {
+                                        text: "px (0 = 不限制)";
+                                        font-family: Theme.font-family;
+                                        font-size: Theme.font-xs;
+                                        color: Theme.text-muted;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+                                }
+
+                                Text {
+                                    text: "内置图片大小限制 (KB):";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                TextInputBox {
+                                    width: 110px;
+                                    horizontal-stretch: 0;
+                                    text <=> AppState.opt-pic-size-limit;
+                                    monospace: true;
+                                    placeholder: "2000";
+                                }
+                            }
+
+                            Row {
+                                Text {
+                                    text: "内置图片格式限制:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                DropdownSelect {
+                                    width: 160px;
+                                    horizontal-stretch: 0;
+                                    model: ["自动", "固定为 JPG", "固定为 PNG"];
+                                    current-index <=> AppState.opt-pic-format;
+                                }
+
+                                Rectangle { horizontal-stretch: 0; }
+
+                                CheckboxItem {
+                                    label: "添加后覆盖已存在封面";
+                                    checked <=> AppState.opt-overwrite-cover;
+                                }
+                            }
+                        }
+                    }
+
+                    OptionSectionCard {
+                        title: "音频文件扫描与过滤";
+                        subtitle: "控制目录扫描时包含的文件扩展名与时长过滤阈值";
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-lg;
+
+                            CheckboxItem {
+                                label: "忽略 MP4 视频文件";
+                                checked <=> AppState.opt-ignore-video;
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+
+                            HorizontalLayout {
+                                spacing: Theme.sp-sm;
+                                horizontal-stretch: 0;
+
+                                Text {
+                                    text: "按时长过滤:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                DropdownSelect {
+                                    width: 190px;
+                                    horizontal-stretch: 0;
+                                    model: ["不过滤 (全部音频)", "忽略短于 15 秒", "忽略短于 30 秒", "忽略短于 60 秒"];
+                                    current-index <=> AppState.opt-duration-filter;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-sm;
+
+                            Text {
+                                text: "允许处理的扩展名:";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-sm;
+                                color: Theme.text-secondary;
+                                vertical-alignment: center;
+                                horizontal-stretch: 0;
+                            }
+
+                            TextInputBox {
+                                horizontal-stretch: 1;
+                                text <=> AppState.opt-file-exts;
+                                monospace: true;
+                            }
+
+                            ActionButton {
+                                text: "还原默认";
+                                clicked => {
+                                    AppState.opt-file-exts = ".aac;.aif;.aifc;.aiff;.ape;.dff;.dsf;.flac;.m4a;.mp3;.mp4;.mpc;.ogg;.opus;.tak;.wav;.wma;.wv;";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Tab 3: 杂项 2 / 外观
+                if AppState.options-tab-index == 3 : VerticalLayout {
+                    spacing: Theme.sp-md;
+
+                    OptionSectionCard {
+                        title: "外观主题";
+                        subtitle: "切换原生 Slint 暗/亮双主题或跟随桌面系统配色";
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-md;
+
+                            ThemeChoiceCard {
+                                title: "跟随系统";
+                                subtitle: "同步桌面深浅色设置";
+                                icon: @image-url("../assets/icons/monitor.svg");
+                                selected: Theme.preference == ThemePreference.system;
+                                preview-bg: Theme.bg-surface-alt;
+                                preview-fg: Theme.accent;
+                                clicked => {
+                                    AppLogic.set-theme(0);
+                                }
+                            }
+
+                            ThemeChoiceCard {
+                                title: "浅色模式";
+                                subtitle: "清爽明亮日间配色";
+                                icon: @image-url("../assets/icons/sun.svg");
+                                selected: Theme.preference == ThemePreference.light;
+                                preview-bg: #f3f4f6;
+                                preview-fg: #2563eb;
+                                clicked => {
+                                    AppLogic.set-theme(1);
+                                }
+                            }
+
+                            ThemeChoiceCard {
+                                title: "深色模式";
+                                subtitle: "低眩光深灰夜间配色";
+                                icon: @image-url("../assets/icons/moon.svg");
+                                selected: Theme.preference == ThemePreference.dark;
+                                preview-bg: #14161a;
+                                preview-fg: #4c8ef7;
+                                clicked => {
+                                    AppLogic.set-theme(2);
+                                }
+                            }
+                        }
+                    }
+
+                    OptionSectionCard {
+                        title: "LRC 文件保存规则";
+                        subtitle: "在写入音频内嵌歌词的同时同步导出外部 .lrc 文件";
+
+                        CheckboxItem {
+                            label: "保存标签同时保存 .lrc 文件";
+                            checked <=> AppState.opt-save-lrc-with-tag;
+                        }
+
+                        GridLayout {
+                            spacing-horizontal: Theme.sp-md;
+                            spacing-vertical: Theme.sp-sm;
+
+                            Row {
+                                Text {
+                                    text: "保存目录:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                TextInputBox {
+                                    horizontal-stretch: 1;
+                                    text <=> AppState.opt-lrc-dir;
+                                    placeholder: "(和歌曲目录相同)";
+                                }
+                            }
+
+                            Row {
+                                Text {
+                                    text: "文件名格式:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: Theme.sp-lg;
+                                    horizontal-stretch: 1;
+
+                                    DropdownSelect {
+                                        width: 190px;
+                                        horizontal-stretch: 0;
+                                        model: ["和歌曲相同", "艺术家 - 标题", "标题 - 艺术家"];
+                                        current-index <=> AppState.opt-lrc-naming;
+                                    }
+
+                                    Rectangle {
+                                        horizontal-stretch: 1;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: Theme.sp-sm;
+                                        horizontal-stretch: 0;
+
+                                        Text {
+                                            text: "文件编码:";
+                                            font-family: Theme.font-family;
+                                            font-size: Theme.font-sm;
+                                            color: Theme.text-secondary;
+                                            vertical-alignment: center;
+                                            horizontal-stretch: 0;
+                                        }
+
+                                        DropdownSelect {
+                                            width: 150px;
+                                            horizontal-stretch: 0;
+                                            model: ["UTF-8", "UTF-8 BOM", "GBK", "UTF-16 LE"];
+                                            current-index: root.lrc-encoding-index;
+                                            selected(idx) => {
+                                                if idx == 0 {
+                                                    AppState.opt-lrc-encoding = "UTF-8";
+                                                } else if idx == 1 {
+                                                    AppState.opt-lrc-encoding = "UTF-8 BOM";
+                                                } else if idx == 2 {
+                                                    AppState.opt-lrc-encoding = "GBK";
+                                                } else {
+                                                    AppState.opt-lrc-encoding = "UTF-16 LE";
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    OptionSectionCard {
+                        title: "杂项与托盘";
+                        subtitle: "文件时间戳保护、系统托盘行为与历史记录维护";
+
+                        GridLayout {
+                            spacing-horizontal: Theme.sp-lg;
+                            spacing-vertical: Theme.sp-xs;
+
+                            Row {
+                                CheckboxItem {
+                                    label: "保存标签时不改变文件修改时间";
+                                    checked <=> AppState.opt-keep-mtime;
+                                }
+
+                                CheckboxItem {
+                                    label: "最小化到通知区域";
+                                    checked <=> AppState.opt-minimize-tray;
+                                }
+                            }
+
+                            Row {
+                                CheckboxItem {
+                                    label: "总在通知区域显示图标";
+                                    checked <=> AppState.opt-always-tray;
+                                }
+
+                                CheckboxItem {
+                                    label: "启动时检查新版本";
+                                    checked <=> AppState.opt-check-updates;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-sm;
+
+                            ActionButton {
+                                text: "清除所有标签历史";
+                                icon: @image-url("../assets/icons/trash-2.svg");
+                                has-icon: true;
+                                variant: "danger";
+                                clicked => {
+                                    AppLogic.trigger-action("clear-history");
+                                }
+                            }
+
+                            Text {
+                                text: "当前共 \{AppState.history.length} 条本地历史快照";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-xs;
+                                color: Theme.text-muted;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                }
+
+                // Tab 4: ReplayGain
+                if AppState.options-tab-index == 4 : VerticalLayout {
+                    spacing: Theme.sp-md;
+
+                    OptionSectionCard {
+                        title: "扫描与写入配置";
+                        subtitle: "基于 EBU R128 响度规范计算音轨/专辑增益及防削波真峰值";
+
+                        GridLayout {
+                            spacing-horizontal: Theme.sp-lg;
+                            spacing-vertical: Theme.sp-sm;
+
+                            Row {
+                                Text {
+                                    text: "扫描模式:";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: Theme.sp-lg;
+                                    horizontal-stretch: 1;
+
+                                    RadioItem {
+                                        label: "仅音轨增益 Track";
+                                        selected: AppState.opt-rg-mode == 0;
+                                        clicked => {
+                                            AppState.opt-rg-mode = 0;
+                                        }
+                                    }
+
+                                    RadioItem {
+                                        label: "专辑 + 音轨增益 Album & Track";
+                                        selected: AppState.opt-rg-mode == 1;
+                                        clicked => {
+                                            AppState.opt-rg-mode = 1;
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row {
+                                Text {
+                                    text: "目标参考响度 (LUFS):";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 0;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: Theme.sp-sm;
+                                    horizontal-stretch: 1;
+
+                                    TextInputBox {
+                                        width: 110px;
+                                        horizontal-stretch: 0;
+                                        text <=> AppState.opt-rg-target-lufs;
+                                        monospace: true;
+                                        placeholder: "-18.0";
+                                    }
+
+                                    Text {
+                                        text: "LUFS (标准推荐 -18.0，等价传统 89 dB SPL)";
+                                        font-family: Theme.font-family;
+                                        font-size: Theme.font-xs;
+                                        color: Theme.text-muted;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                        horizontal-stretch: 1;
+                                    }
+                                }
+                            }
+                        }
+
+                        VerticalLayout {
+                            padding-top: Theme.sp-xs;
+                            spacing: Theme.sp-xs;
+
+                            CheckboxItem {
+                                label: "启用防削波峰值保护";
+                                checked <=> AppState.opt-rg-clip-prevent;
+                            }
+
+                            CheckboxItem {
+                                label: "FLAC 使用小写字段名 (replaygain_*)";
+                                checked <=> AppState.opt-rg-lowercase-flac;
+                            }
+                        }
+                    }
+
+                    OptionSectionCard {
+                        title: "写入字段映射参考";
+                        subtitle: "兼容 foobar2000 / MusicTag / Navidrome / Jellyfin";
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-sm;
+
+                            StatusBadge {
+                                text: AppState.opt-rg-lowercase-flac ? "replaygain_track_gain" : "REPLAYGAIN_TRACK_GAIN";
+                                kind: "neutral";
+                            }
+
+                            StatusBadge {
+                                text: AppState.opt-rg-lowercase-flac ? "replaygain_track_peak" : "REPLAYGAIN_TRACK_PEAK";
+                                kind: "neutral";
+                            }
+
+                            StatusBadge {
+                                text: AppState.opt-rg-lowercase-flac ? "replaygain_album_gain" : "REPLAYGAIN_ALBUM_GAIN";
+                                kind: "neutral";
+                            }
+
+                            StatusBadge {
+                                text: AppState.opt-rg-lowercase-flac ? "replaygain_album_peak" : "REPLAYGAIN_ALBUM_PEAK";
+                                kind: "neutral";
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        vertical-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+            vertical-stretch: 0;
+        }
+
+        Rectangle {
+            height: 52px;
+            background: Theme.bg-surface-alt;
+            vertical-stretch: 0;
+
+            HorizontalLayout {
+                padding-left: Theme.sp-lg;
+                padding-right: Theme.sp-lg;
+                spacing: Theme.sp-sm;
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+
+                    ActionButton {
+                        text: "恢复默认";
+                        icon: @image-url("../assets/icons/undo-2.svg");
+                        has-icon: true;
+                        clicked => {
+                            AppLogic.trigger-action("reset-options");
+                        }
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+
+                    ActionButton {
+                        text: "取消";
+                        clicked => {
+                            AppLogic.close-dialog();
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+
+                    ActionButton {
+                        text: "确定";
+                        variant: "primary";
+                        icon: @image-url("../assets/icons/check.svg");
+                        has-icon: true;
+                        clicked => {
+                            AppLogic.trigger-action("apply-options");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,789 @@
+import { ListView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { ActiveDialog, TrackItem, AppState, AppLogic } from "../state.slint";
+import { ActionButton, StatusBadge, TextInputBox, DropdownSelect } from "primitives.slint";
+
+component TableFlagPill inherits Rectangle {
+    in property <string> text;
+    in property <string> kind: "neutral"; // "accent" | "success" | "netease" | "warning" | "neutral"
+
+    private property <color> fg:
+        root.kind == "accent" ? Theme.accent
+        : root.kind == "success" ? Theme.success
+        : root.kind == "netease" ? Theme.netease
+        : root.kind == "warning" ? Theme.warning
+        : Theme.text-muted;
+
+    private property <color> bg:
+        root.kind == "accent" ? Theme.accent-soft
+        : root.kind == "success" ? Theme.success-soft
+        : root.kind == "netease" ? Theme.netease-soft
+        : root.kind == "warning" ? Theme.warning-soft
+        : Theme.bg-surface-alt;
+
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    preferred-width: pill-txt.preferred-width + 10px;
+    height: 18px;
+    border-radius: 3px;
+    border-width: 1px;
+    border-color: root.kind == "neutral" ? Theme.border : root.fg.with-alpha(0.35);
+    background: root.bg;
+
+    HorizontalLayout {
+        padding-left: 5px;
+        padding-right: 5px;
+        alignment: center;
+
+        pill-txt := Text {
+            text: root.text;
+            font-family: Theme.font-family;
+            font-size: 11px;
+            font-weight: 600;
+            color: root.fg;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component TrackTable inherits Rectangle {
+    background: Theme.bg-panel;
+    callback focus-requested();
+
+    public function scroll-to-row(idx: int) {
+        if idx < 0 || idx >= AppState.tracks.length {
+            return;
+        }
+        if lv.content-y + idx * 36px < 0px {
+            lv.content-y = -(idx * 36px);
+        } else if lv.content-y + (idx + 1) * 36px > lv.visible-height {
+            lv.content-y = lv.visible-height - (idx + 1) * 36px;
+        }
+    }
+
+    private property <bool> all-selected:
+        AppState.tracks.length > 0 && AppState.selected-count == AppState.tracks.length;
+
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+
+        // Top filter & selection bar
+        filter-bar := Rectangle {
+            height: 42px;
+            vertical-stretch: 0;
+            background: Theme.bg-surface-alt;
+
+            HorizontalLayout {
+                padding-left: Theme.sp-md;
+                padding-right: Theme.sp-md;
+                padding-top: 6px;
+                padding-bottom: 6px;
+                spacing: Theme.sp-sm;
+
+                Text {
+                    text: "过滤:";
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-sm;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                    horizontal-stretch: 0;
+                }
+
+                DropdownSelect {
+                    width: 108px;
+                    horizontal-stretch: 0;
+                    model: ["任意", "文件名", "标题", "艺术家", "专辑", "标签格式", "风格/年份"];
+                    current-index <=> AppState.filter-field-index;
+                    selected(idx) => {
+                        AppLogic.update-filter(idx, AppState.filter-keyword);
+                    }
+                }
+
+                TextInputBox {
+                    width: 240px;
+                    horizontal-stretch: 0;
+                    text <=> AppState.filter-keyword;
+                    placeholder: "搜索文件名、标题、艺术家、专辑...";
+                    edited(kw) => {
+                        AppLogic.update-filter(AppState.filter-field-index, kw);
+                    }
+                    accepted(kw) => {
+                        AppLogic.update-filter(AppState.filter-field-index, kw);
+                    }
+                }
+
+                ActionButton {
+                    text: "清空";
+                    variant: "ghost";
+                    enabled: AppState.filter-keyword != "" || AppState.filter-field-index != 0;
+                    clicked => {
+                        AppLogic.update-filter(0, "");
+                        root.focus-requested();
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+
+                HorizontalLayout {
+                    spacing: Theme.sp-xs;
+                    horizontal-stretch: 0;
+
+                    ActionButton {
+                        text: "全选";
+                        variant: "secondary";
+                        clicked => {
+                            AppLogic.select-all();
+                            root.focus-requested();
+                        }
+                    }
+
+                    ActionButton {
+                        text: "反选";
+                        variant: "secondary";
+                        clicked => {
+                            AppLogic.invert-selection();
+                            root.focus-requested();
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 0;
+                        StatusBadge {
+                            text: "已选 \{AppState.selected-count} 项";
+                            kind: AppState.selected-count > 0 ? "accent" : "neutral";
+                        }
+                    }
+
+                    if AppState.modified-count > 0 : VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 0;
+                        StatusBadge {
+                            text: "\{AppState.modified-count} 待保存";
+                            kind: "warning";
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+            vertical-stretch: 0;
+        }
+
+        // Column header bar
+        header-bar := Rectangle {
+            height: 30px;
+            vertical-stretch: 0;
+            background: Theme.bg-surface-alt;
+
+            HorizontalLayout {
+                padding-right: 10px;
+                spacing: 0px;
+
+                // Select all checkbox cell (30px)
+                Rectangle {
+                    width: 30px;
+                    horizontal-stretch: 0;
+
+                    TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => {
+                            if root.all-selected {
+                                AppLogic.unselect-all();
+                            } else {
+                                AppLogic.select-all();
+                            }
+                            root.focus-requested();
+                        }
+                    }
+
+                    Rectangle {
+                        width: 15px;
+                        height: 15px;
+                        border-radius: 3px;
+                        border-width: 1.5px;
+                        border-color: root.all-selected ? Theme.accent : Theme.border-strong;
+                        background: root.all-selected ? Theme.accent : Theme.bg-input;
+
+                        if root.all-selected : Image {
+                            width: 11px;
+                            height: 11px;
+                            source: @image-url("../assets/icons/check.svg");
+                            colorize: Theme.accent-fg;
+                        }
+                    }
+                }
+
+                // Modified dot header (16px)
+                Rectangle {
+                    width: 16px;
+                    horizontal-stretch: 0;
+                    Text {
+                        text: "•";
+                        font-size: Theme.font-xs;
+                        color: Theme.text-muted;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // 文件名 (flex)
+                HorizontalLayout {
+                    horizontal-stretch: 1;
+                    min-width: 140px;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    Text {
+                        text: "文件名";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+
+                // 标题 (144px)
+                HorizontalLayout {
+                    width: 144px;
+                    horizontal-stretch: 0;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    Text {
+                        text: "标题";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+
+                // 艺术家 (116px)
+                HorizontalLayout {
+                    width: 116px;
+                    horizontal-stretch: 0;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    Text {
+                        text: "艺术家";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+
+                // 专辑 (140px)
+                HorizontalLayout {
+                    width: 140px;
+                    horizontal-stretch: 0;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    Text {
+                        text: "专辑";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+
+                // 年份 (46px)
+                HorizontalLayout {
+                    width: 46px;
+                    horizontal-stretch: 0;
+                    padding-left: 4px;
+                    padding-right: 4px;
+                    Text {
+                        text: "年份";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // 音轨 (42px)
+                HorizontalLayout {
+                    width: 42px;
+                    horizontal-stretch: 0;
+                    padding-left: 4px;
+                    padding-right: 4px;
+                    Text {
+                        text: "音轨";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // 标记 (108px)
+                HorizontalLayout {
+                    width: 108px;
+                    horizontal-stretch: 0;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    Text {
+                        text: "标记";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // ReplayGain (72px)
+                HorizontalLayout {
+                    width: 72px;
+                    horizontal-stretch: 0;
+                    padding-left: 4px;
+                    padding-right: 4px;
+                    Text {
+                        text: "回放增益";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // 技术信息/时长 (116px)
+                HorizontalLayout {
+                    width: 116px;
+                    horizontal-stretch: 0;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    Text {
+                        text: "规格 / 时长";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+            vertical-stretch: 0;
+        }
+
+        // Virtualized ListView of tracks + empty state container
+        Rectangle {
+            vertical-stretch: 1;
+            horizontal-stretch: 1;
+            background: Theme.bg-panel;
+
+            lv := ListView {
+                width: 100%;
+                height: 100%;
+                content-width: lv.visible-width;
+
+                for track[idx] in AppState.tracks : ContextMenuArea {
+                width: lv.visible-width;
+                height: 36px;
+
+                Menu {
+                    MenuItem {
+                        title: "组合标签搜索...";
+                        activated => {
+                            AppLogic.select-track(idx);
+                            AppLogic.open-dialog(ActiveDialog.combo-search);
+                        }
+                    }
+                    MenuItem {
+                        title: "歌词搜索...";
+                        activated => {
+                            AppLogic.select-track(idx);
+                            AppLogic.open-dialog(ActiveDialog.lyric-search);
+                        }
+                    }
+                    MenuItem {
+                        title: "封面搜索...";
+                        activated => {
+                            AppLogic.select-track(idx);
+                            AppLogic.open-dialog(ActiveDialog.cover-search);
+                        }
+                    }
+                    MenuItem {
+                        title: "编辑歌词...";
+                        activated => {
+                            AppLogic.select-track(idx);
+                            AppLogic.open-dialog(ActiveDialog.lyric-editor);
+                        }
+                    }
+                    MenuSeparator {}
+                    MenuItem {
+                        title: "扫描 ReplayGain";
+                        activated => {
+                            AppLogic.select-track(idx);
+                            AppLogic.trigger-action("replaygain");
+                        }
+                    }
+                    MenuItem {
+                        title: "保存标签";
+                        activated => { AppLogic.save-selected(); }
+                    }
+                    MenuItem {
+                        title: "撤消修改";
+                        activated => { AppLogic.revert-selected(); }
+                    }
+                    MenuSeparator {}
+                    MenuItem {
+                        title: "全选";
+                        activated => { AppLogic.select-all(); }
+                    }
+                    MenuItem {
+                        title: "反选";
+                        activated => { AppLogic.invert-selection(); }
+                    }
+                }
+
+                row-bg := Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    background: idx == AppState.selected-index
+                        ? Theme.bg-selected
+                        : row-ta.has-hover
+                        ? Theme.bg-hover
+                        : Math.mod(idx, 2) == 0 ? Theme.bg-panel : Theme.bg-surface-alt;
+                    animate background { duration: 100ms; }
+
+                    row-ta := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => {
+                            AppLogic.select-track(idx);
+                            root.focus-requested();
+                        }
+                        double-clicked => {
+                            AppLogic.select-track(idx);
+                            AppLogic.open-dialog(ActiveDialog.combo-search);
+                        }
+                    }
+
+                    // Active row left 3px accent bar
+                    if idx == AppState.selected-index : Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: 3px;
+                        height: 100%;
+                        background: Theme.accent;
+                    }
+
+                    // Subtle bottom row hairline
+                    Rectangle {
+                        x: 0px;
+                        y: parent.height - 1px;
+                        width: parent.width;
+                        height: 1px;
+                        background: Theme.border.with-alpha(0.35);
+                    }
+
+                    HorizontalLayout {
+                        padding-right: 10px;
+                        spacing: 0px;
+
+                        // Checkbox (30px)
+                        Rectangle {
+                            width: 30px;
+                            horizontal-stretch: 0;
+
+                            TouchArea {
+                                mouse-cursor: MouseCursor.pointer;
+                                clicked => {
+                                    AppLogic.toggle-track-selected(idx);
+                                    root.focus-requested();
+                                }
+                            }
+
+                            Rectangle {
+                                width: 15px;
+                                height: 15px;
+                                border-radius: 3px;
+                                border-width: 1.5px;
+                                border-color: track.selected ? Theme.accent : Theme.border-strong;
+                                background: track.selected ? Theme.accent : Theme.bg-input;
+
+                                if track.selected : Image {
+                                    width: 11px;
+                                    height: 11px;
+                                    source: @image-url("../assets/icons/check.svg");
+                                    colorize: Theme.accent-fg;
+                                }
+                            }
+                        }
+
+                        // Modified dot (16px)
+                        Rectangle {
+                            width: 16px;
+                            horizontal-stretch: 0;
+
+                            if track.modified : Rectangle {
+                                width: 7px;
+                                height: 7px;
+                                border-radius: 4px;
+                                background: Theme.warning;
+                            }
+                        }
+
+                        // 文件名 (flex)
+                        HorizontalLayout {
+                            horizontal-stretch: 1;
+                            min-width: 140px;
+                            padding-left: 6px;
+                            padding-right: 6px;
+
+                            Text {
+                                text: track.filename;
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-sm;
+                                font-weight: idx == AppState.selected-index ? 600 : 400;
+                                color: Theme.text-primary;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+
+                        // 标题 (144px)
+                        HorizontalLayout {
+                            width: 144px;
+                            horizontal-stretch: 0;
+                            padding-left: 6px;
+                            padding-right: 6px;
+
+                            Text {
+                                text: track.title != "" ? track.title : "—";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-sm;
+                                color: track.title != "" ? Theme.text-primary : Theme.text-muted;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+
+                        // 艺术家 (116px)
+                        HorizontalLayout {
+                            width: 116px;
+                            horizontal-stretch: 0;
+                            padding-left: 6px;
+                            padding-right: 6px;
+
+                            Text {
+                                text: track.artist != "" ? track.artist : "—";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-sm;
+                                color: track.artist != "" ? Theme.text-secondary : Theme.text-muted;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+
+                        // 专辑 (140px)
+                        HorizontalLayout {
+                            width: 140px;
+                            horizontal-stretch: 0;
+                            padding-left: 6px;
+                            padding-right: 6px;
+
+                            Text {
+                                text: track.album != "" ? track.album : "—";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-sm;
+                                color: track.album != "" ? Theme.text-secondary : Theme.text-muted;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+
+                        // 年份 (46px)
+                        HorizontalLayout {
+                            width: 46px;
+                            horizontal-stretch: 0;
+                            padding-left: 4px;
+                            padding-right: 4px;
+
+                            Text {
+                                text: track.year != "" ? track.year : "—";
+                                font-family: Theme.mono-family;
+                                font-size: Theme.font-xs;
+                                color: track.year != "" ? Theme.text-secondary : Theme.text-muted;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        // 音轨 (42px)
+                        HorizontalLayout {
+                            width: 42px;
+                            horizontal-stretch: 0;
+                            padding-left: 4px;
+                            padding-right: 4px;
+
+                            Text {
+                                text: track.track-str != "" ? track.track-str : "—";
+                                font-family: Theme.mono-family;
+                                font-size: Theme.font-xs;
+                                color: track.track-str != "" ? Theme.text-secondary : Theme.text-muted;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        // 标记 pills (108px): 封面 / 词(or 纯) / 163
+                        HorizontalLayout {
+                            width: 108px;
+                            horizontal-stretch: 0;
+                            padding-left: 6px;
+                            padding-right: 6px;
+                            spacing: 3px;
+                            alignment: start;
+
+                            if track.has-picture : VerticalLayout {
+                                alignment: center;
+                                TableFlagPill {
+                                    text: "封面";
+                                    kind: "accent";
+                                }
+                            }
+
+                            if track.has-lyrics : VerticalLayout {
+                                alignment: center;
+                                TableFlagPill {
+                                    text: "词";
+                                    kind: "success";
+                                }
+                            }
+
+                            if !track.has-lyrics && track.is-instrumental : VerticalLayout {
+                                alignment: center;
+                                TableFlagPill {
+                                    text: "纯";
+                                    kind: "warning";
+                                }
+                            }
+
+                            if track.has-163-key : VerticalLayout {
+                                alignment: center;
+                                TableFlagPill {
+                                    text: "163";
+                                    kind: "netease";
+                                }
+                            }
+
+                            if !track.has-picture && !track.has-lyrics && !track.is-instrumental && !track.has-163-key : Text {
+                                text: "未刮削";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-xs;
+                                color: Theme.text-muted;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        // ReplayGain (72px)
+                        HorizontalLayout {
+                            width: 72px;
+                            horizontal-stretch: 0;
+                            padding-left: 4px;
+                            padding-right: 4px;
+
+                            Text {
+                                text: track.rg-track-gain != "" ? track.rg-track-gain : "—";
+                                font-family: Theme.mono-family;
+                                font-size: 11px;
+                                color: track.rg-track-gain != "" ? Theme.success : Theme.text-muted;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+
+                        // 技术信息/时长 (116px)
+                        HorizontalLayout {
+                            width: 116px;
+                            horizontal-stretch: 0;
+                            padding-left: 6px;
+                            padding-right: 6px;
+
+                            Text {
+                                text: "\{track.duration} · \{track.bitrate}";
+                                font-family: Theme.mono-family;
+                                font-size: 11px;
+                                color: Theme.text-secondary;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                }
+            }
+            }
+
+            if AppState.tracks.length == 0 : Rectangle {
+                width: 100%;
+                height: 100%;
+                background: Theme.bg-panel;
+
+                TouchArea {
+                    clicked => {
+                        root.focus-requested();
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: Theme.sp-sm;
+
+                    HorizontalLayout {
+                        alignment: center;
+                        Image {
+                            width: 32px;
+                            height: 32px;
+                            source: @image-url("../assets/icons/music.svg");
+                            colorize: Theme.text-muted;
+                        }
+                    }
+
+                    Text {
+                        text: "没有匹配的曲目";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-body;
+                        color: Theme.text-secondary;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "请调整过滤关键字或点击“清空”恢复列表";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-muted;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}

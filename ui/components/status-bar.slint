@@ -1,0 +1,69 @@
+import { Theme } from "../theme.slint";
+import { TrackItem, AppState } from "../state.slint";
+import { StatusBadge } from "primitives.slint";
+
+export component AppStatusBar inherits Rectangle {
+    height: 28px;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    background: Theme.bg-surface-alt;
+
+    private property <bool> has-track:
+        AppState.selected-index >= 0 && AppState.selected-index < AppState.tracks.length;
+
+    private property <TrackItem> empty-track;
+
+    private property <TrackItem> current-track:
+        root.has-track ? AppState.tracks[max(0, AppState.selected-index)] : root.empty-track;
+
+    HorizontalLayout {
+        padding-left: Theme.sp-md;
+        padding-right: Theme.sp-md;
+        spacing: Theme.sp-sm;
+
+        Text {
+            text: AppState.status-message != "" ? AppState.status-message : "就绪";
+            font-family: Theme.font-family;
+            font-size: Theme.font-xs;
+            color: Theme.text-secondary;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            StatusBadge {
+                text: "源: 网易云";
+                kind: "netease";
+            }
+        }
+
+        if AppState.opt-write-163-key : VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            StatusBadge {
+                text: "163 key";
+                kind: "accent";
+            }
+        }
+
+        if root.has-track : Rectangle {
+            width: 1px;
+            height: 14px;
+            y: (parent.height - self.height) / 2;
+            background: Theme.border;
+            horizontal-stretch: 0;
+        }
+
+        if root.has-track : Text {
+            text: "\{root.current-track.tag-types} · \{root.current-track.sample-rate} · \{root.current-track.bit-per-sample} · \{root.current-track.channels}ch · \{root.current-track.bitrate} · \{root.current-track.duration}";
+            font-family: Theme.mono-family;
+            font-size: Theme.font-xs;
+            color: Theme.text-secondary;
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+        }
+    }
+}

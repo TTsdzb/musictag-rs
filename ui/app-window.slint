@@ -1,0 +1,348 @@
+import { ThemePreference, Theme } from "theme.slint";
+import { ActiveDialog, AppState, AppLogic } from "state.slint";
+export { ThemePreference, Theme } from "theme.slint";
+export {
+    ActiveDialog,
+    TrackItem,
+    SearchCandidate,
+    CoverCandidate,
+    ColumnConfigItem,
+    DirEntry,
+    HistoryEntry,
+    RegexGroupItem,
+    FilenamePreviewItem,
+    AutoMatchRow,
+    CharsetPreviewRow,
+    SourceItem,
+    InspectorField,
+    AppState,
+    AppLogic,
+} from "state.slint";
+
+import { AppMenuBar, AppMenuPopup } from "components/menu-bar.slint";
+import { AppToolbar } from "components/toolbar.slint";
+import { TrackTable } from "components/track-table.slint";
+import { TagEditorPanel } from "components/tag-editor-panel.slint";
+import { AppStatusBar } from "components/status-bar.slint";
+
+import {
+    ComboSearchDialog,
+    LyricSearchDialog,
+    CoverSearchDialog,
+    CoverResolutionDialog,
+} from "dialogs/search-dialogs.slint";
+import {
+    LyricEditorDialog,
+    AdjustTimetagDialog,
+    FindReplaceDialog,
+    FilenameRelDialog,
+} from "dialogs/editor-dialogs.slint";
+import { OptionsDialog } from "dialogs/options-dialog.slint";
+import {
+    AutoMatchDialog,
+    CustomizeColumnsDialog,
+    ManageDirsDialog,
+    CharsetFixDialog,
+    TagsHistoryDialog,
+    ProgressDialog,
+    AboutDialog,
+} from "dialogs/utility-dialogs.slint";
+
+export component AppWindow inherits Window {
+    title: "音乐标签 (MusicTag Native)";
+    icon: @image-url("assets/app-icon.png");
+    preferred-width: 1440px;
+    preferred-height: 900px;
+    min-width: 1024px;
+    min-height: 680px;
+    default-font-family: Theme.font-family;
+    background: Theme.bg-window;
+    forward-focus: root-fs;
+
+    private property <ActiveDialog> tracked-dialog: AppState.active-dialog;
+    private property <int> tracked-menu: menu-bar.open-menu-index;
+
+    changed tracked-dialog => {
+        if self.tracked-dialog == ActiveDialog.none {
+            root-fs.focus();
+        }
+    }
+
+    changed tracked-menu => {
+        if self.tracked-menu < 0 && AppState.active-dialog == ActiveDialog.none {
+            root-fs.focus();
+        }
+    }
+
+    public function focus-main() {
+        if AppState.active-dialog == ActiveDialog.none {
+            root-fs.focus();
+        }
+    }
+
+    root-fs := FocusScope {
+        width: 100%;
+        height: 100%;
+
+        init => {
+            self.focus();
+        }
+
+        capture-key-pressed(ev) => {
+            if ev.text == Key.Escape {
+                if AppState.active-dialog != ActiveDialog.none {
+                    AppLogic.close-dialog();
+                    return accept;
+                }
+                if menu-bar.open-menu-index >= 0 {
+                    menu-bar.open-menu-index = -1;
+                    root-fs.focus();
+                    return accept;
+                }
+                if !root-fs.has-focus {
+                    root-fs.focus();
+                    return accept;
+                }
+                return reject;
+            }
+
+            if AppState.active-dialog == ActiveDialog.lyric-editor {
+                if ev.modifiers.control && !ev.modifiers.shift && !ev.modifiers.alt && !ev.modifiers.meta {
+                    if ev.text == "s" || ev.text == "S" {
+                        AppLogic.lyric-action("apply");
+                        return accept;
+                    }
+                    if ev.text == "f" || ev.text == "F" || ev.text == "h" || ev.text == "H" {
+                        AppLogic.open-dialog(ActiveDialog.find-replace);
+                        return accept;
+                    }
+                }
+                return reject;
+            }
+
+            if AppState.active-dialog == ActiveDialog.combo-search {
+                if ev.modifiers.control && !ev.modifiers.shift && !ev.modifiers.alt && !ev.modifiers.meta
+                    && (ev.text == "s" || ev.text == "S")
+                {
+                    if AppState.selected-candidate-index >= 0
+                        && AppState.selected-candidate-index < AppState.search-candidates.length
+                    {
+                        AppLogic.apply-combo-candidate(AppState.selected-candidate-index, true);
+                        return accept;
+                    }
+                }
+                return reject;
+            }
+
+            if AppState.active-dialog != ActiveDialog.none {
+                return reject;
+            }
+
+            if ev.text == Key.F5 && !ev.modifiers.control && !ev.modifiers.shift && !ev.modifiers.alt && !ev.modifiers.meta {
+                menu-bar.open-menu-index = -1;
+                AppLogic.trigger-action("refresh");
+                return accept;
+            }
+            if ev.text == Key.F2 && !ev.modifiers.control && !ev.modifiers.shift && !ev.modifiers.alt && !ev.modifiers.meta {
+                menu-bar.open-menu-index = -1;
+                AppLogic.open-dialog(ActiveDialog.filename-rel);
+                return accept;
+            }
+
+            if ev.modifiers.control && !ev.modifiers.alt && !ev.modifiers.meta {
+                if !ev.modifiers.shift {
+                    if ev.text == "s" || ev.text == "S" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.save-selected();
+                        return accept;
+                    }
+                    if ev.text == "r" || ev.text == "R" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.trigger-action("read-tags");
+                        return accept;
+                    }
+                    if ev.text == "o" || ev.text == "O" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.trigger-action("change-dir");
+                        return accept;
+                    }
+                    if ev.text == "f" || ev.text == "F" || ev.text == "h" || ev.text == "H" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.open-dialog(ActiveDialog.find-replace);
+                        return accept;
+                    }
+                    if ev.text == "m" || ev.text == "M" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.open-dialog(ActiveDialog.auto-match);
+                        return accept;
+                    }
+                    if ev.text == "g" || ev.text == "G" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.open-dialog(ActiveDialog.combo-search);
+                        return accept;
+                    }
+                    if ev.text == "l" || ev.text == "L" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.open-dialog(ActiveDialog.lyric-search);
+                        return accept;
+                    }
+                    if ev.text == "p" || ev.text == "P" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.open-dialog(ActiveDialog.cover-search);
+                        return accept;
+                    }
+                    if ev.text == "," {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.open-dialog(ActiveDialog.options);
+                        return accept;
+                    }
+                } else {
+                    if ev.text == "o" || ev.text == "O" {
+                        menu-bar.open-menu-index = -1;
+                        AppLogic.trigger-action("add-dir");
+                        return accept;
+                    }
+                }
+            }
+
+            reject
+        }
+
+        key-pressed(ev) => {
+            if !root-fs.has-focus || AppState.active-dialog != ActiveDialog.none || menu-bar.open-menu-index >= 0 {
+                return reject;
+            }
+
+            if ev.modifiers.control && !ev.modifiers.alt && !ev.modifiers.meta {
+                if !ev.modifiers.shift {
+                    if ev.text == "z" || ev.text == "Z" {
+                        AppLogic.revert-selected();
+                        return accept;
+                    }
+                    if ev.text == "a" || ev.text == "A" {
+                        AppLogic.select-all();
+                        return accept;
+                    }
+                    if ev.text == "i" || ev.text == "I" {
+                        AppLogic.invert-selection();
+                        return accept;
+                    }
+                } else {
+                    if ev.text == "a" || ev.text == "A" {
+                        AppLogic.unselect-all();
+                        return accept;
+                    }
+                }
+            }
+
+            if !ev.modifiers.control && !ev.modifiers.shift && !ev.modifiers.alt && !ev.modifiers.meta {
+                if ev.text == Key.Delete {
+                    AppLogic.trigger-action("remove-items");
+                    return accept;
+                }
+                if ev.text == Key.UpArrow && AppState.tracks.length > 0 {
+                    AppLogic.select-track(AppState.selected-index > 0 ? AppState.selected-index - 1 : 0);
+                    track-table.scroll-to-row(AppState.selected-index);
+                    return accept;
+                }
+                if ev.text == Key.DownArrow && AppState.tracks.length > 0 {
+                    AppLogic.select-track(
+                        AppState.selected-index < 0
+                            ? 0
+                            : min(AppState.tracks.length - 1, AppState.selected-index + 1)
+                    );
+                    track-table.scroll-to-row(AppState.selected-index);
+                    return accept;
+                }
+                if ev.text == Key.Space && AppState.selected-index >= 0 && AppState.selected-index < AppState.tracks.length {
+                    AppLogic.toggle-track-selected(AppState.selected-index);
+                    return accept;
+                }
+                if ev.text == Key.Return && AppState.selected-index >= 0 && AppState.selected-index < AppState.tracks.length {
+                    AppLogic.open-dialog(ActiveDialog.combo-search);
+                    return accept;
+                }
+            }
+
+            reject
+        }
+
+        VerticalLayout {
+            width: 100%;
+            height: 100%;
+            spacing: 0px;
+
+            menu-bar := AppMenuBar {}
+
+            Rectangle {
+                height: 1px;
+                background: Theme.border;
+                vertical-stretch: 0;
+            }
+
+            AppToolbar {
+                focus-requested => { root-fs.focus(); }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Theme.border;
+                vertical-stretch: 0;
+            }
+
+            HorizontalLayout {
+                vertical-stretch: 1;
+                spacing: 0px;
+
+                track-table := TrackTable {
+                    horizontal-stretch: 1;
+                    focus-requested => { root-fs.focus(); }
+                }
+
+                Rectangle {
+                    width: 1px;
+                    background: Theme.border;
+                    horizontal-stretch: 0;
+                }
+
+                TagEditorPanel {
+                    width: 400px;
+                    horizontal-stretch: 0;
+                    focus-requested => { root-fs.focus(); }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Theme.border;
+                vertical-stretch: 0;
+            }
+
+            AppStatusBar {}
+        }
+
+        // Top-level popup menu overlay
+        if menu-bar.open-menu-index >= 0 : AppMenuPopup {
+            open-menu-index <=> menu-bar.open-menu-index;
+            anchor-x: menu-bar.active-menu-x;
+        }
+
+        // All 16 modal dialogs gated on AppState.active-dialog
+        if AppState.active-dialog == ActiveDialog.combo-search : ComboSearchDialog {}
+        if AppState.active-dialog == ActiveDialog.lyric-search : LyricSearchDialog {}
+        if AppState.active-dialog == ActiveDialog.cover-search : CoverSearchDialog {}
+        if AppState.active-dialog == ActiveDialog.cover-resolution : CoverResolutionDialog {}
+        if AppState.active-dialog == ActiveDialog.lyric-editor : LyricEditorDialog {}
+        if AppState.active-dialog == ActiveDialog.adjust-timetag : AdjustTimetagDialog {}
+        if AppState.active-dialog == ActiveDialog.find-replace : FindReplaceDialog {}
+        if AppState.active-dialog == ActiveDialog.filename-rel : FilenameRelDialog {}
+        if AppState.active-dialog == ActiveDialog.options : OptionsDialog {}
+        if AppState.active-dialog == ActiveDialog.auto-match : AutoMatchDialog {}
+        if AppState.active-dialog == ActiveDialog.customize-columns : CustomizeColumnsDialog {}
+        if AppState.active-dialog == ActiveDialog.manage-dirs : ManageDirsDialog {}
+        if AppState.active-dialog == ActiveDialog.charset-fix : CharsetFixDialog {}
+        if AppState.active-dialog == ActiveDialog.tags-history : TagsHistoryDialog {}
+        if AppState.active-dialog == ActiveDialog.progress : ProgressDialog {}
+        if AppState.active-dialog == ActiveDialog.about : AboutDialog {}
+    }
+}

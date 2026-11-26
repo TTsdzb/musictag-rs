@@ -1,0 +1,789 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { ActiveDialog, TrackItem, InspectorField, AppState, AppLogic } from "../state.slint";
+import {
+    ActionButton,
+    SectionHeader,
+    StatusBadge,
+    TextInputBox,
+    CheckboxItem,
+    DropdownSelect,
+    FieldModePills,
+    TagFieldInput,
+} from "primitives.slint";
+
+component InspectorLabel inherits Text {
+    font-family: Theme.font-family;
+    font-size: Theme.font-xs;
+    color: Theme.text-secondary;
+    vertical-alignment: center;
+    horizontal-stretch: 0;
+}
+
+component ReplayGainCell inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+
+    horizontal-stretch: 1;
+    height: 44px;
+    border-radius: Theme.r-sm;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: Theme.bg-surface-alt;
+
+    VerticalLayout {
+        padding-left: Theme.sp-sm;
+        padding-right: Theme.sp-sm;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: 2px;
+        alignment: center;
+
+        Text {
+            text: root.label;
+            font-family: Theme.font-family;
+            font-size: 11px;
+            color: Theme.text-muted;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.value != "" ? root.value : "—";
+            font-family: Theme.mono-family;
+            font-size: Theme.font-xs;
+            font-weight: 600;
+            color: root.value != "" ? Theme.text-primary : Theme.text-muted;
+            overflow: elide;
+        }
+    }
+}
+
+export component TagEditorPanel inherits Rectangle {
+    width: 400px;
+    background: Theme.bg-panel;
+    callback focus-requested();
+
+    private property <bool> has-track:
+        AppState.selected-index >= 0 && AppState.selected-index < AppState.tracks.length;
+
+    private property <TrackItem> empty-track;
+
+    private property <TrackItem> current-track:
+        root.has-track ? AppState.tracks[max(0, AppState.selected-index)] : root.empty-track;
+
+    private property <bool> has-selection-modified:
+        AppState.is-multi-select
+            ? (AppState.field-title.mode != 1
+                || AppState.field-artist.mode != 1
+                || AppState.field-album.mode != 1
+                || AppState.field-album-artist.mode != 1
+                || AppState.field-year.mode != 1
+                || AppState.field-track.mode != 1
+                || AppState.field-disc.mode != 1
+                || AppState.field-genre.mode != 1
+                || AppState.field-composer.mode != 1
+                || AppState.field-lyricist.mode != 1
+                || AppState.field-comment.mode != 1
+                || AppState.field-cover-mode != 1
+                || AppState.field-lyrics-mode != 1
+                || root.current-track.modified)
+            : (root.has-track && root.current-track.modified);
+
+    private property <bool> cover-is-cleared: AppState.field-cover-mode == 2;
+    private property <bool> cover-is-mixed-keep:
+        AppState.field-cover-mode == 1 && AppState.field-cover-mixed;
+
+    private property <bool> lyrics-is-cleared: AppState.field-lyrics-mode == 2;
+    private property <bool> lyrics-is-mixed-keep:
+        AppState.field-lyrics-mode == 1 && AppState.field-lyrics-mixed;
+
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+
+        // Sticky compact top inspector header
+        Rectangle {
+            vertical-stretch: 0;
+            height: top-header-layout.preferred-height;
+            background: Theme.bg-surface-alt;
+
+            top-header-layout := HorizontalLayout {
+                padding-left: Theme.sp-md;
+                padding-right: Theme.sp-md;
+                padding-top: 8px;
+                padding-bottom: 8px;
+                spacing: Theme.sp-sm;
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Image {
+                        width: 15px;
+                        height: 15px;
+                        source: @image-url("../assets/icons/music.svg");
+                        colorize: Theme.accent;
+                    }
+                }
+
+                Text {
+                    text: AppState.is-multi-select
+                        ? "已选 \{AppState.selected-count} 首曲目（批量编辑）"
+                        : (root.has-track ? root.current-track.filename : "未选择曲目");
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-sm;
+                    font-weight: 600;
+                    color: (AppState.is-multi-select || root.has-track) ? Theme.text-primary : Theme.text-muted;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+
+                if root.has-selection-modified : VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    StatusBadge {
+                        text: "已修改";
+                        kind: "warning";
+                    }
+                }
+
+                if AppState.is-multi-select || (root.has-track && root.current-track.tag-types != "") : VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    StatusBadge {
+                        text: AppState.is-multi-select ? "批量" : root.current-track.tag-types;
+                        kind: AppState.is-multi-select ? "accent" : "neutral";
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+            vertical-stretch: 0;
+        }
+
+        // Scrollable inspector sections
+        sv := ScrollView {
+            vertical-stretch: 1;
+            horizontal-stretch: 1;
+            content-width: sv.visible-width;
+
+            VerticalLayout {
+                width: sv.visible-width;
+                spacing: 0px;
+
+                // 1. 基础标签 Section
+                SectionHeader {
+                    title: "基础标签";
+                    subtitle: "保留 = 不改动原属性 · 置空 = 保存时清除";
+
+                    if root.has-track && root.current-track.has-163-key && !AppState.is-multi-select : StatusBadge {
+                        text: "163 key";
+                        kind: "success";
+                    }
+                }
+
+                VerticalLayout {
+                    padding-left: Theme.sp-md;
+                    padding-right: Theme.sp-lg;
+                    padding-top: 6px;
+                    padding-bottom: 8px;
+                    spacing: 5px;
+
+                    GridLayout {
+                        spacing: 5px;
+
+                        Row {
+                            InspectorLabel { text: "标题"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-title.text;
+                                mode: AppState.field-title.mode;
+                                mixed: AppState.field-title.mixed;
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("title", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("title", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("title", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "艺术家"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-artist.text;
+                                mode: AppState.field-artist.mode;
+                                mixed: AppState.field-artist.mixed;
+                                placeholder: "多歌手用 ; 分隔";
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("artist", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("artist", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("artist", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "专辑"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-album.text;
+                                mode: AppState.field-album.mode;
+                                mixed: AppState.field-album.mixed;
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("album", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("album", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("album", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "专辑艺术家"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-album-artist.text;
+                                mode: AppState.field-album-artist.mode;
+                                mixed: AppState.field-album-artist.mixed;
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("album-artist", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("album-artist", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("album-artist", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "年份"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-year.text;
+                                mode: AppState.field-year.mode;
+                                mixed: AppState.field-year.mixed;
+                                placeholder: "年份";
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("year", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("year", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("year", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "音轨 / 碟号"; min-width: 68px; }
+                            HorizontalLayout {
+                                spacing: Theme.sp-xs;
+
+                                TagFieldInput {
+                                    compact-actions: true;
+                                    text: AppState.field-track.text;
+                                    mode: AppState.field-track.mode;
+                                    mixed: AppState.field-track.mixed;
+                                    placeholder: "音轨号";
+                                    enabled: root.has-track;
+                                    edited(v) => { AppLogic.edit-selected-field("track-str", v); }
+                                    accepted(v) => { AppLogic.edit-selected-field("track-str", v); }
+                                    mode-changed(m) => { AppLogic.set-field-mode("track-str", m); root.focus-requested(); }
+                                }
+                                TagFieldInput {
+                                    compact-actions: true;
+                                    text: AppState.field-disc.text;
+                                    mode: AppState.field-disc.mode;
+                                    mixed: AppState.field-disc.mixed;
+                                    placeholder: "碟号";
+                                    enabled: root.has-track;
+                                    edited(v) => { AppLogic.edit-selected-field("disc-str", v); }
+                                    accepted(v) => { AppLogic.edit-selected-field("disc-str", v); }
+                                    mode-changed(m) => { AppLogic.set-field-mode("disc-str", m); root.focus-requested(); }
+                                }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "风格"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-genre.text;
+                                mode: AppState.field-genre.mode;
+                                mixed: AppState.field-genre.mixed;
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("genre", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("genre", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("genre", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "作曲家"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-composer.text;
+                                mode: AppState.field-composer.mode;
+                                mixed: AppState.field-composer.mixed;
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("composer", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("composer", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("composer", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "作词家"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-lyricist.text;
+                                mode: AppState.field-lyricist.mode;
+                                mixed: AppState.field-lyricist.mixed;
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("lyricist", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("lyricist", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("lyricist", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "注释"; min-width: 68px; }
+                            TagFieldInput {
+                                text: AppState.field-comment.text;
+                                mode: AppState.field-comment.mode;
+                                mixed: AppState.field-comment.mixed;
+                                monospace: true;
+                                enabled: root.has-track;
+                                edited(v) => { AppLogic.edit-selected-field("comment", v); }
+                                accepted(v) => { AppLogic.edit-selected-field("comment", v); }
+                                mode-changed(m) => { AppLogic.set-field-mode("comment", m); root.focus-requested(); }
+                            }
+                        }
+
+                        Row {
+                            InspectorLabel { text: "网易云 ID"; min-width: 68px; }
+                            HorizontalLayout {
+                                spacing: Theme.sp-xs;
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 0;
+                                    StatusBadge {
+                                        text: root.current-track.has-163-key ? "163 key" : "未关联";
+                                        kind: root.current-track.has-163-key ? "netease" : "neutral";
+                                    }
+                                }
+
+                                TextInputBox {
+                                    horizontal-stretch: 1;
+                                    monospace: true;
+                                    placeholder: "Song ID";
+                                    text: root.current-track.netease-id;
+                                    enabled: root.has-track;
+                                    edited(v) => { AppLogic.edit-selected-field("netease-id", v); }
+                                    accepted(v) => { AppLogic.edit-selected-field("netease-id", v); }
+                                }
+
+                                ActionButton {
+                                    text: "关联";
+                                    variant: "secondary";
+                                    enabled: root.has-track;
+                                    clicked => { AppLogic.open-dialog(ActiveDialog.combo-search); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: Theme.border; vertical-stretch: 0; }
+
+                // 2. 封面区块
+                SectionHeader {
+                    title: "封面";
+
+                    if root.cover-is-cleared : StatusBadge {
+                        text: "<将置空>";
+                        kind: "danger";
+                    }
+
+                    if root.cover-is-mixed-keep : StatusBadge {
+                        text: "<保留原属性>";
+                        kind: "accent";
+                    }
+
+                    if !root.cover-is-cleared && !root.cover-is-mixed-keep : StatusBadge {
+                        text: root.current-track.has-picture ? "已嵌入" : "无封面";
+                        kind: root.current-track.has-picture ? "accent" : "neutral";
+                    }
+
+                    FieldModePills {
+                        mode: AppState.field-cover-mode;
+                        enabled: root.has-track;
+                        mode-changed(m) => { AppLogic.set-field-mode("cover", m); root.focus-requested(); }
+                    }
+                }
+
+                VerticalLayout {
+                    padding-left: Theme.sp-md;
+                    padding-right: Theme.sp-lg;
+                    padding-top: 6px;
+                    padding-bottom: 8px;
+                    spacing: 6px;
+
+                    HorizontalLayout {
+                        spacing: Theme.sp-md;
+
+                        Rectangle {
+                            width: 112px;
+                            height: 112px;
+                            horizontal-stretch: 0;
+                            vertical-stretch: 0;
+                            border-radius: Theme.r-md;
+                            border-width: 1px;
+                            border-color: root.cover-is-cleared
+                                ? Theme.danger.with-alpha(0.65)
+                                : root.cover-is-mixed-keep
+                                ? Theme.accent.with-alpha(0.45)
+                                : Theme.border-strong;
+                            background: root.cover-is-cleared ? Theme.danger-soft : Theme.bg-surface-alt;
+                            clip: true;
+
+                            if root.cover-is-cleared : VerticalLayout {
+                                alignment: center;
+                                spacing: Theme.sp-xs;
+
+                                HorizontalLayout {
+                                    alignment: center;
+                                    Image {
+                                        width: 24px;
+                                        height: 24px;
+                                        source: @image-url("../assets/icons/eraser.svg");
+                                        colorize: Theme.danger;
+                                    }
+                                }
+
+                                Text {
+                                    text: "<将置空>";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-xs;
+                                    font-weight: 600;
+                                    color: Theme.danger;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            if root.cover-is-mixed-keep : VerticalLayout {
+                                alignment: center;
+                                spacing: Theme.sp-xs;
+
+                                HorizontalLayout {
+                                    alignment: center;
+                                    Image {
+                                        width: 24px;
+                                        height: 24px;
+                                        source: @image-url("../assets/icons/image.svg");
+                                        colorize: Theme.accent;
+                                    }
+                                }
+
+                                Text {
+                                    text: "<保留原属性>";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-xs;
+                                    font-weight: 600;
+                                    color: Theme.accent;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            if !root.cover-is-cleared && !root.cover-is-mixed-keep && root.has-track && root.current-track.has-picture : Image {
+                                width: 100%;
+                                height: 100%;
+                                source: root.current-track.cover;
+                                image-fit: contain;
+                            }
+
+                            if !root.cover-is-cleared && !root.cover-is-mixed-keep && (!root.has-track || !root.current-track.has-picture) : VerticalLayout {
+                                alignment: center;
+                                spacing: Theme.sp-xs;
+
+                                HorizontalLayout {
+                                    alignment: center;
+                                    Image {
+                                        width: 28px;
+                                        height: 28px;
+                                        source: @image-url("../assets/icons/image.svg");
+                                        colorize: Theme.text-muted;
+                                    }
+                                }
+
+                                Text {
+                                    text: "无封面";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-xs;
+                                    color: Theme.text-muted;
+                                    horizontal-alignment: center;
+                                }
+                            }
+                        }
+
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            spacing: Theme.sp-xs;
+                            alignment: center;
+
+                            Text {
+                                text: root.cover-is-cleared
+                                    ? "<将置空 · 保存时清除封面>"
+                                    : root.cover-is-mixed-keep
+                                    ? "<保留原属性 · 各曲目封面保持不变>"
+                                    : (root.current-track.has-picture ? root.current-track.cover-info : "未嵌入封面图片");
+                                font-family: (root.cover-is-cleared || root.cover-is-mixed-keep) ? Theme.font-family : Theme.mono-family;
+                                font-size: Theme.font-xs;
+                                color: root.cover-is-cleared
+                                    ? Theme.danger
+                                    : root.cover-is-mixed-keep
+                                    ? Theme.accent
+                                    : (root.current-track.has-picture ? Theme.text-secondary : Theme.text-muted);
+                                wrap: word-wrap;
+                            }
+
+                            DropdownSelect {
+                                model: ["封面 (Front)", "封底 (Back)", "碟片 (Media)"];
+                                current-index: 0;
+                                enabled: root.has-track;
+                            }
+
+                            CheckboxItem {
+                                label: "添加后覆盖已有封面";
+                                checked <=> AppState.opt-overwrite-cover;
+                            }
+                        }
+                    }
+
+                    GridLayout {
+                        spacing: Theme.sp-xs;
+
+                        Row {
+                            ActionButton {
+                                horizontal-stretch: 1;
+                                text: "网络搜索";
+                                icon: @image-url("../assets/icons/search.svg");
+                                has-icon: true;
+                                variant: "secondary";
+                                enabled: root.has-track;
+                                clicked => { AppLogic.open-dialog(ActiveDialog.cover-search); }
+                            }
+                            ActionButton {
+                                horizontal-stretch: 1;
+                                text: "更改分辨率";
+                                icon: @image-url("../assets/icons/sliders-horizontal.svg");
+                                has-icon: true;
+                                variant: "secondary";
+                                enabled: root.has-track && root.current-track.has-picture && !root.cover-is-cleared;
+                                clicked => { AppLogic.open-dialog(ActiveDialog.cover-resolution); }
+                            }
+                        }
+
+                        Row {
+                            ActionButton {
+                                horizontal-stretch: 1;
+                                text: "提取封面";
+                                icon: @image-url("../assets/icons/download.svg");
+                                has-icon: true;
+                                variant: "secondary";
+                                enabled: root.has-track && root.current-track.has-picture && !root.cover-is-cleared;
+                                clicked => { AppLogic.trigger-action("extract-cover"); }
+                            }
+                            ActionButton {
+                                horizontal-stretch: 1;
+                                text: "删除封面";
+                                icon: @image-url("../assets/icons/trash-2.svg");
+                                has-icon: true;
+                                variant: "danger";
+                                enabled: root.has-track && (root.current-track.has-picture || AppState.is-multi-select);
+                                clicked => { AppLogic.set-field-mode("cover", 2); root.focus-requested(); }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: Theme.border; vertical-stretch: 0; }
+
+                // 3. 歌词区块
+                SectionHeader {
+                    title: "歌词";
+
+                    if root.lyrics-is-cleared : StatusBadge {
+                        text: "<将置空>";
+                        kind: "danger";
+                    }
+
+                    if root.lyrics-is-mixed-keep : StatusBadge {
+                        text: "<保留原属性>";
+                        kind: "accent";
+                    }
+
+                    if !root.lyrics-is-cleared && !root.lyrics-is-mixed-keep && root.current-track.is-instrumental : StatusBadge {
+                        text: "纯音乐·已跳过";
+                        kind: "warning";
+                    }
+
+                    if !root.lyrics-is-cleared && !root.lyrics-is-mixed-keep && !root.current-track.is-instrumental && root.current-track.has-lyrics : StatusBadge {
+                        text: "双语 LRC";
+                        kind: "success";
+                    }
+
+                    if !root.lyrics-is-cleared && !root.lyrics-is-mixed-keep && !root.current-track.is-instrumental && !root.current-track.has-lyrics : StatusBadge {
+                        text: "无歌词";
+                        kind: "neutral";
+                    }
+
+                    FieldModePills {
+                        mode: AppState.field-lyrics-mode;
+                        enabled: root.has-track;
+                        mode-changed(m) => { AppLogic.set-field-mode("lyrics", m); root.focus-requested(); }
+                    }
+                }
+
+                VerticalLayout {
+                    padding-left: Theme.sp-md;
+                    padding-right: Theme.sp-lg;
+                    padding-top: 6px;
+                    padding-bottom: 8px;
+                    spacing: 6px;
+
+                    Rectangle {
+                        height: 112px;
+                        border-radius: Theme.r-sm;
+                        border-width: 1px;
+                        border-color: root.lyrics-is-cleared
+                            ? Theme.danger.with-alpha(0.65)
+                            : root.lyrics-is-mixed-keep
+                            ? Theme.accent.with-alpha(0.35)
+                            : Theme.border;
+                        background: root.lyrics-is-cleared
+                            ? Theme.danger-soft
+                            : root.lyrics-is-mixed-keep
+                            ? Theme.bg-surface-alt
+                            : Theme.bg-input;
+                        clip: true;
+
+                        lyric-sv := ScrollView {
+                            width: 100%;
+                            height: 100%;
+                            content-width: lyric-sv.visible-width;
+
+                            VerticalLayout {
+                                padding: Theme.sp-sm;
+                                width: lyric-sv.visible-width;
+
+                                Text {
+                                    text: root.lyrics-is-cleared
+                                        ? "<将置空：保存时清除歌词标签>"
+                                        : root.lyrics-is-mixed-keep
+                                        ? "<保留原属性：各曲目原有歌词保持不变>"
+                                        : root.current-track.is-instrumental
+                                        ? "检测到纯音乐标记，按规则不写入歌词"
+                                        : (root.current-track.has-lyrics ? root.current-track.lyrics : "暂无歌词，可点击下方按钮搜索或手动编辑");
+                                    font-family: (!root.lyrics-is-cleared && !root.lyrics-is-mixed-keep && root.current-track.has-lyrics && !root.current-track.is-instrumental)
+                                        ? Theme.mono-family
+                                        : Theme.font-family;
+                                    font-size: Theme.font-xs;
+                                    color: root.lyrics-is-cleared
+                                        ? Theme.danger
+                                        : root.lyrics-is-mixed-keep
+                                        ? Theme.accent
+                                        : (root.current-track.has-lyrics && !root.current-track.is-instrumental)
+                                        ? Theme.text-primary
+                                        : Theme.text-muted;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+                    }
+
+                    GridLayout {
+                        spacing: Theme.sp-xs;
+
+                        Row {
+                            ActionButton {
+                                horizontal-stretch: 1;
+                                text: "编辑歌词";
+                                icon: @image-url("../assets/icons/file-edit.svg");
+                                has-icon: true;
+                                variant: "secondary";
+                                enabled: root.has-track;
+                                clicked => { AppLogic.open-dialog(ActiveDialog.lyric-editor); }
+                            }
+                            ActionButton {
+                                horizontal-stretch: 1;
+                                text: "搜索歌词";
+                                icon: @image-url("../assets/icons/search.svg");
+                                has-icon: true;
+                                variant: "secondary";
+                                enabled: root.has-track;
+                                clicked => { AppLogic.open-dialog(ActiveDialog.lyric-search); }
+                            }
+                        }
+
+                        Row {
+                            ActionButton {
+                                horizontal-stretch: 1;
+                                text: "导入LRC";
+                                icon: @image-url("../assets/icons/upload.svg");
+                                has-icon: true;
+                                variant: "secondary";
+                                enabled: root.has-track;
+                                clicked => { AppLogic.lyric-action("import-lrc"); }
+                            }
+                            ActionButton {
+                                horizontal-stretch: 1;
+                                text: "另存LRC";
+                                icon: @image-url("../assets/icons/download.svg");
+                                has-icon: true;
+                                variant: "secondary";
+                                enabled: root.has-track && root.current-track.has-lyrics && !root.lyrics-is-cleared;
+                                clicked => { AppLogic.lyric-action("save-lrc"); }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: Theme.border; vertical-stretch: 0; }
+
+                // 4. ReplayGain 区块
+                SectionHeader {
+                    title: "ReplayGain 回放增益";
+
+                    ActionButton {
+                        text: "扫描";
+                        icon: @image-url("../assets/icons/audio-waveform.svg");
+                        has-icon: true;
+                        variant: "secondary";
+                        enabled: root.has-track;
+                        clicked => { AppLogic.trigger-action("replaygain"); }
+                    }
+                }
+
+                VerticalLayout {
+                    padding-left: Theme.sp-md;
+                    padding-right: Theme.sp-lg;
+                    padding-top: Theme.sp-sm;
+                    padding-bottom: Theme.sp-md;
+
+                    GridLayout {
+                        spacing: Theme.sp-xs;
+
+                        Row {
+                            ReplayGainCell {
+                                label: "音轨增益 (Track Gain)";
+                                value: root.current-track.rg-track-gain;
+                            }
+                            ReplayGainCell {
+                                label: "音轨峰值 (Track Peak)";
+                                value: root.current-track.rg-track-peak;
+                            }
+                        }
+
+                        Row {
+                            ReplayGainCell {
+                                label: "专辑增益 (Album Gain)";
+                                value: root.current-track.rg-album-gain;
+                            }
+                            ReplayGainCell {
+                                label: "专辑峰值 (Album Peak)";
+                                value: root.current-track.rg-album-peak;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

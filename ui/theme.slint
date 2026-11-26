@@ -1,0 +1,77 @@
+import { Palette } from "std-widgets.slint";
+
+export enum ThemePreference {
+    system,
+    light,
+    dark,
+}
+
+export global Theme {
+    in-out property <ThemePreference> preference: ThemePreference.dark;
+
+    out property <bool> dark:
+        preference == ThemePreference.dark ? true :
+        preference == ThemePreference.light ? false :
+        Palette.color-scheme == ColorScheme.dark;
+
+    // Surface & Window Palette
+    out property <color> bg-window: dark ? #14161a : #f3f4f6;
+    out property <color> bg-panel: dark ? #1b1e24 : #ffffff;
+    out property <color> bg-elevated: dark ? #22262e : #ffffff;
+    out property <color> bg-surface-alt: dark ? #1e222a : #f8f9fb;
+    out property <color> bg-input: dark ? #16191f : #ffffff;
+    out property <color> bg-hover: dark ? #2a2f3a : #e9edf3;
+    out property <color> bg-selected: dark ? #203454 : #dbeafe;
+    out property <color> bg-selected-muted: dark ? #262c38 : #eef2f7;
+
+    // Borders
+    out property <color> border: dark ? #2e3440 : #d5dae2;
+    out property <color> border-strong: dark ? #3d4555 : #b8c0cc;
+
+    // Typography Colors
+    out property <color> text-primary: dark ? #e6e9ef : #181b20;
+    out property <color> text-secondary: dark ? #9aa3b2 : #556070;
+    out property <color> text-muted: dark ? #6c7687 : #8590a2;
+
+    // Semantic & Brand Accents
+    out property <color> accent: dark ? #4c8ef7 : #2563eb;
+    out property <color> accent-hover: dark ? #609bf8 : #1d4ed8;
+    out property <color> accent-soft: dark ? #1d2e4c : #dbeafe;
+    out property <color> accent-fg: #ffffff;
+
+    out property <color> netease: dark ? #ef4444 : #dc2626;
+    out property <color> netease-soft: dark ? #3a1d22 : #fee2e2;
+
+    out property <color> success: dark ? #3fb950 : #15803d;
+    out property <color> success-soft: dark ? #183222 : #dcfce7;
+
+    out property <color> warning: dark ? #e39a2b : #b45309;
+    out property <color> warning-soft: dark ? #362814 : #fef3c7;
+
+    out property <color> danger: dark ? #f85149 : #dc2626;
+    out property <color> danger-soft: dark ? #3a1b1d : #fee2e2;
+
+    out property <color> backdrop: rgba(0, 0, 0, 0.55);
+
+    // Spacing Scale
+    out property <length> sp-xs: 4px;
+    out property <length> sp-sm: 8px;
+    out property <length> sp-md: 12px;
+    out property <length> sp-lg: 16px;
+
+    // Corner Radii
+    out property <length> r-sm: 4px;
+    out property <length> r-md: 6px;
+    out property <length> r-lg: 8px;
+
+    // Type Scale (relative-font-size keeps rem scaling without referencing Window.default-font-size inside global)
+    out property <relative-font-size> font-xs: 0.75rem;
+    out property <relative-font-size> font-sm: 0.8125rem;
+    out property <relative-font-size> font-body: 0.875rem;
+    out property <relative-font-size> font-heading: 1rem;
+    out property <relative-font-size> font-title: 1.125rem;
+
+    // Font Families
+    out property <string> font-family: "Noto Sans CJK SC";
+    out property <string> mono-family: "Noto Sans Mono CJK SC";
+}

@@ -1,0 +1,508 @@
+import { Theme, ThemePreference } from "../theme.slint";
+import { ActiveDialog, AppState, AppLogic } from "../state.slint";
+import { StatusBadge } from "primitives.slint";
+
+component MenuBarButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    in property <bool> any-open: false;
+    callback toggled(length);
+    callback hovered(length);
+
+    horizontal-stretch: 0;
+    vertical-stretch: 1;
+    preferred-width: lbl.preferred-width + 18px;
+    border-radius: Theme.r-sm;
+    background: root.active ? Theme.bg-selected : (ta.has-hover ? Theme.bg-hover : transparent);
+    animate background { duration: 120ms; }
+
+    ta := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => {
+            root.toggled(root.absolute-position.x);
+        }
+        changed has-hover => {
+            if self.has-hover && root.any-open {
+                root.hovered(root.absolute-position.x);
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 9px;
+        padding-right: 9px;
+        alignment: center;
+
+        lbl := Text {
+            text: root.label;
+            font-family: Theme.font-family;
+            font-size: Theme.font-sm;
+            font-weight: root.active ? 600 : 400;
+            color: root.active ? Theme.accent : Theme.text-primary;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component PopupMenuEntry inherits Rectangle {
+    in property <string> label;
+    in property <string> shortcut;
+    in property <bool> checked: false;
+    in property <bool> checkable: false;
+    in property <bool> danger: false;
+    in property <bool> enabled: true;
+    callback activated();
+
+    height: 28px;
+    horizontal-stretch: 1;
+    border-radius: Theme.r-sm;
+    background: !root.enabled ? transparent
+        : ta.has-hover ? (root.danger ? Theme.danger-soft : Theme.bg-hover)
+        : transparent;
+    opacity: root.enabled ? 1.0 : 0.45;
+    animate background { duration: 100ms; }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            if root.enabled {
+                root.activated();
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.sp-sm;
+        padding-right: Theme.sp-sm;
+        spacing: Theme.sp-sm;
+
+        Rectangle {
+            width: 16px;
+            horizontal-stretch: 0;
+            vertical-stretch: 1;
+
+            if root.checkable && root.checked : Image {
+                width: 13px;
+                height: 13px;
+                source: @image-url("../assets/icons/check.svg");
+                colorize: Theme.accent;
+            }
+        }
+
+        Text {
+            text: root.label;
+            font-family: Theme.font-family;
+            font-size: Theme.font-sm;
+            color: (root.danger && ta.has-hover) ? Theme.danger : Theme.text-primary;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+
+        if root.shortcut != "" : Text {
+            text: root.shortcut;
+            font-family: Theme.mono-family;
+            font-size: Theme.font-xs;
+            color: Theme.text-muted;
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+        }
+    }
+}
+
+component PopupMenuSeparator inherits Rectangle {
+    height: 9px;
+    horizontal-stretch: 1;
+
+    Rectangle {
+        x: 6px;
+        y: 4px;
+        width: parent.width - 12px;
+        height: 1px;
+        background: Theme.border;
+    }
+}
+
+export component AppMenuBar inherits Rectangle {
+    in-out property <int> open-menu-index: -1;
+    in-out property <length> active-menu-x: 4px;
+
+    private property <[string]> menus: [
+        "文件(F)",
+        "编辑(E)",
+        "视图(V)",
+        "标签源(S)",
+        "批量(B)",
+        "工具(T)",
+        "帮助(H)",
+    ];
+
+    height: 28px;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    background: Theme.bg-surface-alt;
+
+    HorizontalLayout {
+        padding-left: Theme.sp-xs;
+        padding-right: Theme.sp-sm;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        spacing: 2px;
+
+        for title[idx] in root.menus : MenuBarButton {
+            label: title;
+            active: root.open-menu-index == idx;
+            any-open: root.open-menu-index >= 0;
+            toggled(pos-x) => {
+                root.active-menu-x = pos-x;
+                root.open-menu-index = root.open-menu-index == idx ? -1 : idx;
+            }
+            hovered(pos-x) => {
+                root.active-menu-x = pos-x;
+                root.open-menu-index = idx;
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+
+        // Right-side working-dir pill
+        dir-pill := Rectangle {
+            horizontal-stretch: 0;
+            vertical-stretch: 1;
+            preferred-width: min(320px, dir-layout.preferred-width);
+            border-radius: Theme.r-sm;
+            border-width: 1px;
+            border-color: dir-ta.has-hover ? Theme.border-strong : Theme.border;
+            background: dir-ta.has-hover ? Theme.bg-hover : Theme.bg-panel;
+            animate background, border-color { duration: 150ms; }
+
+            dir-ta := TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => {
+                    root.open-menu-index = -1;
+                    AppLogic.open-dialog(ActiveDialog.manage-dirs);
+                }
+            }
+
+            dir-layout := HorizontalLayout {
+                padding-left: Theme.sp-sm;
+                padding-right: Theme.sp-sm;
+                spacing: 5px;
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 0;
+                    Image {
+                        source: @image-url("../assets/icons/folder-open.svg");
+                        width: 13px;
+                        height: 13px;
+                        colorize: Theme.accent;
+                    }
+                }
+
+                Text {
+                    text: AppState.working-dir;
+                    font-family: Theme.mono-family;
+                    font-size: Theme.font-xs;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    max-width: 260px;
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            padding-left: Theme.sp-xs;
+
+            StatusBadge {
+                text: "网易云源";
+                kind: "netease";
+            }
+        }
+    }
+}
+
+export component AppMenuPopup inherits Rectangle {
+    in-out property <int> open-menu-index: -1;
+    in property <length> anchor-x: 4px;
+
+    width: 100%;
+    height: 100%;
+
+    // Start backdrop below the 28px menu bar so clicking menu bar buttons toggles/switches cleanly.
+    if root.open-menu-index >= 0 : TouchArea {
+        x: 0px;
+        y: 28px;
+        width: parent.width;
+        height: max(0px, parent.height - 28px);
+        clicked => {
+            root.open-menu-index = -1;
+        }
+    }
+
+    if root.open-menu-index >= 0 : popup-card := Rectangle {
+        x: clamp(root.anchor-x, 4px, max(4px, parent.width - self.width - 8px));
+        y: 28px;
+        width: 264px;
+        height: menu-items.preferred-height;
+        border-radius: Theme.r-md;
+        border-width: 1px;
+        border-color: Theme.border-strong;
+        background: Theme.bg-elevated;
+        drop-shadow-blur: 16px;
+        drop-shadow-offset-y: 4px;
+        drop-shadow-color: rgba(0, 0, 0, 0.38);
+        clip: true;
+
+        // Absorb stray clicks inside menu card background.
+        TouchArea {
+            width: 100%;
+            height: 100%;
+        }
+
+        menu-items := VerticalLayout {
+            padding: 4px;
+            spacing: 1px;
+
+            // 0: 文件(F)
+            if root.open-menu-index == 0 : PopupMenuEntry {
+                label: "改变工作目录...";
+                shortcut: "Ctrl+O";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("change-dir"); }
+            }
+            if root.open-menu-index == 0 : PopupMenuEntry {
+                label: "添加目录...";
+                shortcut: "Ctrl+Shift+O";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("add-dir"); }
+            }
+            if root.open-menu-index == 0 : PopupMenuEntry {
+                label: "管理目录...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.manage-dirs); }
+            }
+            if root.open-menu-index == 0 : PopupMenuSeparator {}
+            if root.open-menu-index == 0 : PopupMenuEntry {
+                label: "保存标签";
+                shortcut: "Ctrl+S";
+                activated => { root.open-menu-index = -1; AppLogic.save-selected(); }
+            }
+            if root.open-menu-index == 0 : PopupMenuEntry {
+                label: "读取标签";
+                shortcut: "Ctrl+R";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("read-tags"); }
+            }
+            if root.open-menu-index == 0 : PopupMenuEntry {
+                label: "清除标签";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("clear-tags"); }
+            }
+            if root.open-menu-index == 0 : PopupMenuEntry {
+                label: "重命名...";
+                shortcut: "F2";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.filename-rel); }
+            }
+            if root.open-menu-index == 0 : PopupMenuEntry {
+                label: "打开文件目录";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("open-file-dir"); }
+            }
+
+            // 1: 编辑(E)
+            if root.open-menu-index == 1 : PopupMenuEntry {
+                label: "撤消";
+                shortcut: "Ctrl+Z";
+                activated => { root.open-menu-index = -1; AppLogic.revert-selected(); }
+            }
+            if root.open-menu-index == 1 : PopupMenuSeparator {}
+            if root.open-menu-index == 1 : PopupMenuEntry {
+                label: "全选";
+                shortcut: "Ctrl+A";
+                activated => { root.open-menu-index = -1; AppLogic.select-all(); }
+            }
+            if root.open-menu-index == 1 : PopupMenuEntry {
+                label: "取消选定";
+                shortcut: "Ctrl+Shift+A";
+                activated => { root.open-menu-index = -1; AppLogic.unselect-all(); }
+            }
+            if root.open-menu-index == 1 : PopupMenuEntry {
+                label: "反选";
+                shortcut: "Ctrl+I";
+                activated => { root.open-menu-index = -1; AppLogic.invert-selection(); }
+            }
+            if root.open-menu-index == 1 : PopupMenuSeparator {}
+            if root.open-menu-index == 1 : PopupMenuEntry {
+                label: "查找/替换...";
+                shortcut: "Ctrl+F";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.find-replace); }
+            }
+            if root.open-menu-index == 1 : PopupMenuEntry {
+                label: "删除项";
+                shortcut: "Del";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("remove-items"); }
+            }
+            if root.open-menu-index == 1 : PopupMenuEntry {
+                label: "删除文件";
+                danger: true;
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("delete-files"); }
+            }
+
+            // 2: 视图(V)
+            if root.open-menu-index == 2 : PopupMenuEntry {
+                label: "刷新";
+                shortcut: "F5";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("refresh"); }
+            }
+            if root.open-menu-index == 2 : PopupMenuEntry {
+                label: "自定义显示列...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.customize-columns); }
+            }
+            if root.open-menu-index == 2 : PopupMenuSeparator {}
+            if root.open-menu-index == 2 : PopupMenuEntry {
+                label: "主题切换: 跟随系统";
+                checkable: true;
+                checked: Theme.preference == ThemePreference.system;
+                activated => { root.open-menu-index = -1; AppLogic.set-theme(0); }
+            }
+            if root.open-menu-index == 2 : PopupMenuEntry {
+                label: "主题切换: 浅色模式";
+                checkable: true;
+                checked: Theme.preference == ThemePreference.light;
+                activated => { root.open-menu-index = -1; AppLogic.set-theme(1); }
+            }
+            if root.open-menu-index == 2 : PopupMenuEntry {
+                label: "主题切换: 深色模式";
+                checkable: true;
+                checked: Theme.preference == ThemePreference.dark;
+                activated => { root.open-menu-index = -1; AppLogic.set-theme(2); }
+            }
+
+            // 3: 标签源(S)
+            if root.open-menu-index == 3 : PopupMenuEntry {
+                label: "组合标签源 -> 网易云(默认)";
+                checkable: true;
+                checked: true;
+                activated => {
+                    root.open-menu-index = -1;
+                    AppState.options-tab-index = 0;
+                    AppLogic.open-dialog(ActiveDialog.options);
+                }
+            }
+            if root.open-menu-index == 3 : PopupMenuEntry {
+                label: "歌词源 -> 网易云(默认)";
+                checkable: true;
+                checked: true;
+                activated => {
+                    root.open-menu-index = -1;
+                    AppState.options-tab-index = 0;
+                    AppLogic.open-dialog(ActiveDialog.options);
+                }
+            }
+            if root.open-menu-index == 3 : PopupMenuEntry {
+                label: "图片源 -> 网易云(默认)";
+                checkable: true;
+                checked: true;
+                activated => {
+                    root.open-menu-index = -1;
+                    AppState.options-tab-index = 0;
+                    AppLogic.open-dialog(ActiveDialog.options);
+                }
+            }
+            if root.open-menu-index == 3 : PopupMenuSeparator {}
+            if root.open-menu-index == 3 : PopupMenuEntry {
+                label: "自动匹配标签...";
+                shortcut: "Ctrl+M";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.auto-match); }
+            }
+            if root.open-menu-index == 3 : PopupMenuEntry {
+                label: "组合标签搜索...";
+                shortcut: "Ctrl+G";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.combo-search); }
+            }
+            if root.open-menu-index == 3 : PopupMenuEntry {
+                label: "搜索歌词...";
+                shortcut: "Ctrl+L";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.lyric-search); }
+            }
+            if root.open-menu-index == 3 : PopupMenuEntry {
+                label: "搜索封面...";
+                shortcut: "Ctrl+P";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.cover-search); }
+            }
+
+            // 4: 批量(B)
+            if root.open-menu-index == 4 : PopupMenuEntry {
+                label: "自动匹配标签...";
+                shortcut: "Ctrl+M";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.auto-match); }
+            }
+            if root.open-menu-index == 4 : PopupMenuEntry {
+                label: "文件名相关...";
+                shortcut: "F2";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.filename-rel); }
+            }
+            if root.open-menu-index == 4 : PopupMenuSeparator {}
+            if root.open-menu-index == 4 : PopupMenuEntry {
+                label: "提取封面";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("extract-cover"); }
+            }
+            if root.open-menu-index == 4 : PopupMenuEntry {
+                label: "更改封面分辨率...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.cover-resolution); }
+            }
+            if root.open-menu-index == 4 : PopupMenuSeparator {}
+            if root.open-menu-index == 4 : PopupMenuEntry {
+                label: "扫描 ReplayGain...";
+                activated => { root.open-menu-index = -1; AppLogic.trigger-action("replaygain"); }
+            }
+            if root.open-menu-index == 4 : PopupMenuEntry {
+                label: "批量歌词处理...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.lyric-editor); }
+            }
+            if root.open-menu-index == 4 : PopupMenuEntry {
+                label: "繁简转换...";
+                activated => {
+                    root.open-menu-index = -1;
+                    AppState.options-tab-index = 1;
+                    AppLogic.open-dialog(ActiveDialog.options);
+                }
+            }
+            if root.open-menu-index == 4 : PopupMenuEntry {
+                label: "编码修正...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.charset-fix); }
+            }
+
+            // 5: 工具(T)
+            if root.open-menu-index == 5 : PopupMenuEntry {
+                label: "标签历史...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.tags-history); }
+            }
+            if root.open-menu-index == 5 : PopupMenuEntry {
+                label: "管理目录...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.manage-dirs); }
+            }
+            if root.open-menu-index == 5 : PopupMenuEntry {
+                label: "编辑歌词...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.lyric-editor); }
+            }
+            if root.open-menu-index == 5 : PopupMenuEntry {
+                label: "调整时间轴...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.adjust-timetag); }
+            }
+            if root.open-menu-index == 5 : PopupMenuSeparator {}
+            if root.open-menu-index == 5 : PopupMenuEntry {
+                label: "选项...";
+                shortcut: "Ctrl+,";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.options); }
+            }
+
+            // 6: 帮助(H)
+            if root.open-menu-index == 6 : PopupMenuEntry {
+                label: "关于 音乐标签...";
+                activated => { root.open-menu-index = -1; AppLogic.open-dialog(ActiveDialog.about); }
+            }
+        }
+    }
+}

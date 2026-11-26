@@ -1,0 +1,1204 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+
+export component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> active: false;
+    in property <bool> enabled: true;
+    in property <bool> compact: false;
+    in property <bool> danger: false;
+    callback clicked();
+
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    border-radius: Theme.r-md;
+    border-width: 1px;
+    border-color: root.active
+        ? (root.danger ? Theme.danger.with-alpha(0.55) : Theme.accent.with-alpha(0.55))
+        : (ta.has-hover && root.enabled ? Theme.border : transparent);
+    background: !root.enabled ? transparent
+        : root.active ? (root.danger ? Theme.danger-soft : Theme.bg-selected)
+        : ta.pressed ? Theme.bg-selected-muted
+        : ta.has-hover ? (root.danger ? Theme.danger-soft : Theme.bg-hover)
+        : transparent;
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    preferred-width: root.label == ""
+        ? (root.compact ? 28px : 34px)
+        : (root.compact ? (36px + label-measure.preferred-width) : max(54px, 20px + label-measure.preferred-width));
+    preferred-height: root.compact ? 28px : (root.label == "" ? 34px : 48px);
+    min-width: self.preferred-width;
+    height: self.preferred-height;
+
+    animate background, border-color { duration: 150ms; }
+
+    // Hidden reference text so parent layouts always get exact preferred width.
+    label-measure := Text {
+        visible: false;
+        text: root.label;
+        font-family: Theme.font-family;
+        font-size: Theme.font-xs;
+        font-weight: root.active ? 600 : 400;
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            if root.enabled {
+                root.clicked();
+            }
+        }
+    }
+
+    if root.compact || root.label == "" : HorizontalLayout {
+        padding-left: 6px;
+        padding-right: 6px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: root.label == "" ? 0px : 4px;
+        alignment: center;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Image {
+                source: root.icon;
+                width: root.compact ? 16px : 18px;
+                height: root.compact ? 16px : 18px;
+                image-fit: contain;
+                colorize: !root.enabled ? Theme.text-muted
+                    : (root.danger && (ta.has-hover || root.active)) ? Theme.danger
+                    : root.active ? Theme.accent
+                    : Theme.text-primary;
+            }
+        }
+
+        if root.label != "" : Text {
+            text: root.label;
+            font-family: Theme.font-family;
+            font-size: Theme.font-xs;
+            font-weight: root.active ? 600 : 400;
+            color: !root.enabled ? Theme.text-muted
+                : (root.danger && (ta.has-hover || root.active)) ? Theme.danger
+                : root.active ? Theme.accent
+                : Theme.text-primary;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    if !root.compact && root.label != "" : VerticalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        spacing: 3px;
+        alignment: center;
+
+        HorizontalLayout {
+            alignment: center;
+            Image {
+                source: root.icon;
+                width: 18px;
+                height: 18px;
+                image-fit: contain;
+                colorize: !root.enabled ? Theme.text-muted
+                    : (root.danger && (ta.has-hover || root.active)) ? Theme.danger
+                    : root.active ? Theme.accent
+                    : Theme.text-primary;
+            }
+        }
+
+        Text {
+            text: root.label;
+            font-family: Theme.font-family;
+            font-size: Theme.font-xs;
+            font-weight: root.active ? 600 : 400;
+            color: !root.enabled ? Theme.text-muted
+                : (root.danger && (ta.has-hover || root.active)) ? Theme.danger
+                : root.active ? Theme.accent
+                : Theme.text-secondary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+export component ActionButton inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <string> variant: "secondary"; // "primary" | "secondary" | "danger" | "ghost"
+    in property <bool> enabled: true;
+    callback clicked();
+
+    private property <color> fg-color:
+        (root.variant == "primary" || root.variant == "danger") ? Theme.accent-fg : Theme.text-primary;
+
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    preferred-width: btn-layout.preferred-width;
+    preferred-height: max(30px, btn-layout.preferred-height);
+    height: self.preferred-height;
+    border-radius: Theme.r-sm;
+    border-width: root.variant == "secondary" ? 1px : 0px;
+    border-color: root.variant == "secondary"
+        ? (ta.has-hover && root.enabled ? Theme.border-strong : Theme.border)
+        : transparent;
+    background: root.variant == "primary"
+        ? (ta.pressed && root.enabled ? Theme.accent : ta.has-hover && root.enabled ? Theme.accent-hover : Theme.accent)
+        : root.variant == "danger"
+        ? (ta.pressed && root.enabled ? Theme.danger.darker(0.12) : ta.has-hover && root.enabled ? Theme.danger.brighter(0.1) : Theme.danger)
+        : root.variant == "ghost"
+        ? (ta.pressed && root.enabled ? Theme.bg-selected-muted : ta.has-hover && root.enabled ? Theme.bg-hover : transparent)
+        : (ta.pressed && root.enabled ? Theme.bg-selected-muted : ta.has-hover && root.enabled ? Theme.bg-hover : Theme.bg-elevated);
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    animate background, border-color { duration: 150ms; }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            if root.enabled {
+                root.clicked();
+            }
+        }
+    }
+
+    btn-layout := HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        spacing: 6px;
+        alignment: center;
+
+        if root.has-icon || root.icon.width > 0 : VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Image {
+                source: root.icon;
+                width: 15px;
+                height: 15px;
+                image-fit: contain;
+                colorize: root.fg-color;
+            }
+        }
+
+        if root.text != "" : Text {
+            text: root.text;
+            font-family: Theme.font-family;
+            font-size: Theme.font-sm;
+            font-weight: 500;
+            color: root.fg-color;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+export component ToolbarDivider inherits Rectangle {
+    width: 9px;
+    min-height: 20px;
+    horizontal-stretch: 0;
+    vertical-stretch: 1;
+
+    Rectangle {
+        width: 1px;
+        height: max(16px, parent.height - 12px);
+        background: Theme.border;
+    }
+}
+
+export component SectionHeader inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    height: header-layout.preferred-height;
+    background: Theme.bg-surface-alt;
+
+    header-layout := VerticalLayout {
+        HorizontalLayout {
+            padding-left: Theme.sp-md;
+            padding-right: Theme.sp-md;
+            padding-top: 7px;
+            padding-bottom: 7px;
+            spacing: Theme.sp-sm;
+
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+                spacing: 2px;
+
+                Text {
+                    text: root.title;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-sm;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                    overflow: elide;
+                }
+
+                if root.subtitle != "" : Text {
+                    text: root.subtitle;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-xs;
+                    color: Theme.text-secondary;
+                    overflow: elide;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 0;
+
+                HorizontalLayout {
+                    spacing: Theme.sp-xs;
+                    @children
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+            vertical-stretch: 0;
+        }
+    }
+}
+
+export component StatusBadge inherits Rectangle {
+    in property <string> text;
+    in property <string> kind: "neutral"; // "neutral" | "accent" | "netease" | "success" | "warning" | "danger"
+
+    private property <color> badge-fg:
+        root.kind == "accent" ? Theme.accent
+        : root.kind == "netease" ? Theme.netease
+        : root.kind == "success" ? Theme.success
+        : root.kind == "warning" ? Theme.warning
+        : root.kind == "danger" ? Theme.danger
+        : Theme.text-secondary;
+
+    private property <color> badge-bg:
+        root.kind == "accent" ? Theme.accent-soft
+        : root.kind == "netease" ? Theme.netease-soft
+        : root.kind == "success" ? Theme.success-soft
+        : root.kind == "warning" ? Theme.warning-soft
+        : root.kind == "danger" ? Theme.danger-soft
+        : Theme.bg-hover;
+
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    preferred-width: badge-layout.preferred-width;
+    preferred-height: badge-layout.preferred-height;
+    height: self.preferred-height;
+    border-radius: Theme.r-sm;
+    border-width: 1px;
+    border-color: root.kind == "neutral" ? Theme.border : root.badge-fg.with-alpha(0.35);
+    background: root.badge-bg;
+
+    badge-layout := HorizontalLayout {
+        padding-left: 7px;
+        padding-right: 7px;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        alignment: center;
+
+        Text {
+            text: root.text;
+            font-family: Theme.font-family;
+            font-size: Theme.font-xs;
+            font-weight: 600;
+            color: root.badge-fg;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component DialogOverlay inherits Rectangle {
+    in property <string> title;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <length> dialog-width: 640px;
+    in property <length> dialog-height: 460px;
+    in property <length> body-padding: Theme.sp-lg;
+    in property <length> body-spacing: Theme.sp-md;
+    in property <bool> close-on-backdrop: true;
+    callback close();
+    callback dialog-key-pressed(KeyEvent) -> EventResult;
+
+    public function focus-dialog() {
+        dialog-fs.focus();
+    }
+
+    width: 100%;
+    height: 100%;
+    background: Theme.backdrop;
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => {
+            if root.close-on-backdrop {
+                root.close();
+            }
+        }
+    }
+
+    shadow-host := Rectangle {
+        width: min(root.dialog-width, max(280px, root.width - 32px));
+        height: min(root.dialog-height, max(200px, root.height - 32px));
+        border-radius: Theme.r-lg;
+        background: Theme.bg-panel;
+        drop-shadow-blur: 24px;
+        drop-shadow-offset-y: 8px;
+        drop-shadow-color: rgba(0, 0, 0, 0.45);
+
+        dialog-fs := FocusScope {
+            width: 100%;
+            height: 100%;
+
+            init => {
+                self.focus();
+            }
+
+            key-pressed(ev) => {
+                if ev.text == Key.Escape {
+                    root.close();
+                    return accept;
+                }
+                if self.has-focus {
+                    return root.dialog-key-pressed(ev);
+                }
+                reject
+            }
+
+            card := Rectangle {
+                width: 100%;
+                height: 100%;
+                border-radius: Theme.r-lg;
+                background: Theme.bg-panel;
+                border-width: 1px;
+                border-color: Theme.border-strong;
+                clip: true;
+
+                // Absorb non-interactive clicks inside card so backdrop does not dismiss.
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    clicked => {
+                        dialog-fs.focus();
+                    }
+                }
+
+                VerticalLayout {
+                    width: 100%;
+                    height: 100%;
+
+                    header := Rectangle {
+                        height: 42px;
+                        vertical-stretch: 0;
+                        background: Theme.bg-surface-alt;
+
+                        HorizontalLayout {
+                            padding-left: Theme.sp-lg;
+                            padding-right: Theme.sp-sm;
+                            spacing: Theme.sp-sm;
+
+                            if root.has-icon || root.icon.width > 0 : VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 0;
+                                Image {
+                                    source: root.icon;
+                                    width: 16px;
+                                    height: 16px;
+                                    image-fit: contain;
+                                    colorize: Theme.accent;
+                                }
+                            }
+
+                            Text {
+                                text: root.title;
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-body;
+                                font-weight: 600;
+                                color: Theme.text-primary;
+                                vertical-alignment: center;
+                                overflow: elide;
+                                horizontal-stretch: 1;
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 0;
+
+                                close-btn := Rectangle {
+                                    width: 28px;
+                                    height: 28px;
+                                    border-radius: Theme.r-sm;
+                                    background: close-ta.pressed ? Theme.danger-soft
+                                        : close-ta.has-hover ? Theme.danger-soft
+                                        : transparent;
+                                    animate background { duration: 150ms; }
+
+                                    close-ta := TouchArea {
+                                        mouse-cursor: MouseCursor.pointer;
+                                        clicked => {
+                                            root.close();
+                                        }
+                                    }
+
+                                    Image {
+                                        width: 15px;
+                                        height: 15px;
+                                        source: @image-url("../assets/icons/x.svg");
+                                        colorize: close-ta.has-hover ? Theme.danger : Theme.text-secondary;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1px;
+                        background: Theme.border;
+                        vertical-stretch: 0;
+                    }
+
+                    VerticalLayout {
+                        vertical-stretch: 1;
+                        padding: root.body-padding;
+                        spacing: root.body-spacing;
+                        @children
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component TextInputBox inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> read-only: false;
+    in property <bool> monospace: false;
+    in property <bool> enabled: true;
+    out property <bool> has-focus: input.has-focus;
+    callback edited(string);
+    callback accepted(string);
+
+    height: 30px;
+    preferred-width: 140px;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    border-radius: Theme.r-sm;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.border;
+    background: (!root.enabled || root.read-only) ? Theme.bg-surface-alt : Theme.bg-input;
+    clip: true;
+    forward-focus: input;
+
+    animate border-color { duration: 150ms; }
+
+    TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.text : MouseCursor.default;
+        clicked => {
+            input.focus();
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.sp-sm;
+        padding-right: Theme.sp-sm;
+
+        viewport := Rectangle {
+            clip: true;
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+
+            Text {
+                width: 100%;
+                height: 100%;
+                vertical-alignment: center;
+                text: (root.text == "" && input.preedit-text == "") ? root.placeholder : "";
+                font-family: root.monospace ? Theme.mono-family : Theme.font-family;
+                font-size: Theme.font-sm;
+                color: Theme.text-muted;
+                overflow: elide;
+            }
+
+            input := TextInput {
+                property <length> computed-x;
+
+                x: min(0px, max(parent.width - self.width - self.text-cursor-width, self.computed-x));
+                width: max(parent.width - self.text-cursor-width, self.preferred-width);
+                height: 100%;
+                vertical-alignment: center;
+                single-line: true;
+                text <=> root.text;
+                read-only: root.read-only;
+                enabled: root.enabled;
+                font-family: root.monospace ? Theme.mono-family : Theme.font-family;
+                font-size: Theme.font-sm;
+                color: root.enabled ? Theme.text-primary : Theme.text-muted;
+                selection-background-color: Theme.accent;
+                selection-foreground-color: Theme.accent-fg;
+
+                cursor-position-changed(cpos) => {
+                    if cpos.x + self.computed-x < 4px {
+                        self.computed-x = -cpos.x + 4px;
+                    } else if cpos.x + self.computed-x > parent.width - 4px - self.text-cursor-width {
+                        self.computed-x = parent.width - cpos.x - 4px - self.text-cursor-width;
+                    }
+                }
+
+                edited => {
+                    root.edited(self.text);
+                }
+
+                accepted => {
+                    root.accepted(self.text);
+                }
+            }
+        }
+    }
+}
+
+export component TextAreaBox inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> read-only: false;
+    in property <bool> monospace: false;
+    in property <bool> enabled: true;
+    out property <bool> has-focus: input.has-focus;
+    callback edited(string);
+
+    min-height: 84px;
+    min-width: 120px;
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    border-radius: Theme.r-sm;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.border;
+    background: (!root.enabled || root.read-only) ? Theme.bg-surface-alt : Theme.bg-input;
+    clip: true;
+    forward-focus: input;
+
+    animate border-color { duration: 150ms; }
+
+    VerticalLayout {
+        padding: Theme.sp-sm;
+
+        sv := ScrollView {
+            enabled: root.enabled;
+            content-width: sv.visible-width;
+            content-height: max(sv.visible-height, input.preferred-height);
+
+            Text {
+                x: 0px;
+                y: 0px;
+                width: sv.visible-width;
+                wrap: word-wrap;
+                text: (root.text == "" && input.preedit-text == "") ? root.placeholder : "";
+                font-family: root.monospace ? Theme.mono-family : Theme.font-family;
+                font-size: Theme.font-sm;
+                color: Theme.text-muted;
+            }
+
+            input := TextInput {
+                x: 0px;
+                y: 0px;
+                width: sv.visible-width;
+                height: max(sv.visible-height, self.preferred-height);
+                single-line: false;
+                wrap: word-wrap;
+                text <=> root.text;
+                read-only: root.read-only;
+                enabled: root.enabled;
+                font-family: root.monospace ? Theme.mono-family : Theme.font-family;
+                font-size: Theme.font-sm;
+                color: root.enabled ? Theme.text-primary : Theme.text-muted;
+                selection-background-color: Theme.accent;
+                selection-foreground-color: Theme.accent-fg;
+                page-height: sv.visible-height;
+
+                edited => {
+                    root.edited(self.text);
+                }
+
+                cursor-position-changed(cpos) => {
+                    if cpos.y + sv.content-y < 0px {
+                        sv.content-y = min(0px, sv.visible-height - cpos.y - 20px, max(sv.visible-height - self.height, -cpos.y));
+                    } else if cpos.y + sv.content-y > sv.visible-height - 20px {
+                        sv.content-y = min(0px, max(sv.visible-height - self.height, sv.visible-height - cpos.y - 20px));
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component CheckboxItem inherits Rectangle {
+    in-out property <bool> checked;
+    in property <string> label;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    min-height: max(24px, layout.min-height);
+
+    layout := HorizontalLayout {
+        spacing: Theme.sp-sm;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        alignment: start;
+
+        box := Rectangle {
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 3px;
+            border-width: 1.5px;
+            border-color: root.checked ? Theme.accent : (ta.has-hover && root.enabled ? Theme.border-strong : Theme.border);
+            background: root.checked ? Theme.accent : (ta.has-hover && root.enabled ? Theme.bg-hover : Theme.bg-input);
+            opacity: root.enabled ? 1.0 : 0.45;
+            animate background, border-color { duration: 150ms; }
+
+            if root.checked : Image {
+                width: 12px;
+                height: 12px;
+                source: @image-url("../assets/icons/check.svg");
+                colorize: Theme.accent-fg;
+            }
+        }
+
+        if root.label != "" : Text {
+            text: root.label;
+            font-family: Theme.font-family;
+            font-size: Theme.font-sm;
+            color: root.enabled ? Theme.text-primary : Theme.text-muted;
+            vertical-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            if root.enabled {
+                root.checked = !root.checked;
+                root.toggled(root.checked);
+            }
+        }
+    }
+}
+
+export component RadioItem inherits Rectangle {
+    in property <bool> selected;
+    in property <string> label;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    min-height: max(24px, layout.min-height);
+
+    layout := HorizontalLayout {
+        spacing: Theme.sp-sm;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        alignment: start;
+
+        outer := Rectangle {
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 8px;
+            border-width: 1.5px;
+            border-color: root.selected ? Theme.accent : (ta.has-hover && root.enabled ? Theme.border-strong : Theme.border);
+            background: ta.has-hover && root.enabled ? Theme.bg-hover : Theme.bg-input;
+            opacity: root.enabled ? 1.0 : 0.45;
+            animate background, border-color { duration: 150ms; }
+
+            if root.selected : Rectangle {
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: Theme.accent;
+            }
+        }
+
+        if root.label != "" : Text {
+            text: root.label;
+            font-family: Theme.font-family;
+            font-size: Theme.font-sm;
+            color: root.enabled ? Theme.text-primary : Theme.text-muted;
+            vertical-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            if root.enabled {
+                root.clicked();
+            }
+        }
+    }
+}
+
+export component DropdownSelect inherits Rectangle {
+    in property <[string]> model;
+    in-out property <int> current-index: 0;
+    in property <bool> enabled: true;
+    callback selected(int);
+
+    private property <string> current-text:
+        (root.current-index >= 0 && root.current-index < root.model.length)
+        ? root.model[root.current-index]
+        : "";
+
+    height: 30px;
+    preferred-width: 140px;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    border-radius: Theme.r-sm;
+    border-width: 1px;
+    border-color: ta.has-hover && root.enabled ? Theme.border-strong : Theme.border;
+    background: !root.enabled ? Theme.bg-surface-alt : (ta.has-hover ? Theme.bg-hover : Theme.bg-input);
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    animate background, border-color { duration: 150ms; }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            if root.enabled && root.model.length > 0 {
+                popup.show();
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.sp-sm;
+        padding-right: Theme.sp-sm;
+        spacing: Theme.sp-sm;
+
+        Text {
+            text: root.current-text;
+            font-family: Theme.font-family;
+            font-size: Theme.font-sm;
+            color: root.enabled ? Theme.text-primary : Theme.text-muted;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Image {
+                source: @image-url("../assets/icons/chevron-down.svg");
+                width: 14px;
+                height: 14px;
+                image-fit: contain;
+                colorize: Theme.text-secondary;
+            }
+        }
+    }
+
+    popup := PopupWindow {
+        x: 0px;
+        y: root.height + 2px;
+        width: root.width;
+        height: min(220px, max(38px, root.model.length * 30px + 8px));
+        close-policy: PopupClosePolicy.close-on-click-outside;
+
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            border-radius: Theme.r-md;
+            border-width: 1px;
+            border-color: Theme.border-strong;
+            background: Theme.bg-elevated;
+            drop-shadow-blur: 14px;
+            drop-shadow-offset-y: 4px;
+            drop-shadow-color: rgba(0, 0, 0, 0.35);
+            clip: true;
+
+            ScrollView {
+                VerticalLayout {
+                    padding: 4px;
+                    spacing: 2px;
+                    alignment: start;
+
+                    for item[idx] in root.model : Rectangle {
+                        height: 28px;
+                        border-radius: Theme.r-sm;
+                        background: idx == root.current-index
+                            ? Theme.bg-selected
+                            : (opt-ta.has-hover ? Theme.bg-hover : transparent);
+                        animate background { duration: 120ms; }
+
+                        opt-ta := TouchArea {
+                            mouse-cursor: MouseCursor.pointer;
+                            clicked => {
+                                root.current-index = idx;
+                                root.selected(idx);
+                                popup.close();
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: Theme.sp-sm;
+                            padding-right: Theme.sp-sm;
+                            spacing: Theme.sp-sm;
+
+                            Text {
+                                text: item;
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-sm;
+                                font-weight: idx == root.current-index ? 600 : 400;
+                                color: idx == root.current-index ? Theme.accent : Theme.text-primary;
+                                vertical-alignment: center;
+                                overflow: elide;
+                                horizontal-stretch: 1;
+                            }
+
+                            if idx == root.current-index : VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 0;
+                                Image {
+                                    source: @image-url("../assets/icons/check.svg");
+                                    width: 13px;
+                                    height: 13px;
+                                    colorize: Theme.accent;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component TabBar inherits Rectangle {
+    in property <[string]> tabs;
+    in-out property <int> current-index: 0;
+    callback tab-selected(int);
+
+    height: 36px;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    background: Theme.bg-surface-alt;
+
+    Rectangle {
+        y: parent.height - 1px;
+        width: 100%;
+        height: 1px;
+        background: Theme.border;
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.sp-sm;
+        padding-right: Theme.sp-sm;
+        spacing: 2px;
+        alignment: start;
+
+        for tab[idx] in root.tabs : Rectangle {
+            horizontal-stretch: 0;
+            vertical-stretch: 1;
+            min-width: tab-text.preferred-width + 24px;
+            background: tab-ta.has-hover && idx != root.current-index
+                ? Theme.bg-hover.with-alpha(0.6)
+                : transparent;
+            animate background { duration: 150ms; }
+
+            tab-ta := TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => {
+                    root.current-index = idx;
+                    root.tab-selected(idx);
+                }
+            }
+
+            HorizontalLayout {
+                padding-left: Theme.sp-md;
+                padding-right: Theme.sp-md;
+                alignment: center;
+
+                tab-text := Text {
+                    text: tab;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-sm;
+                    font-weight: idx == root.current-index ? 600 : 400;
+                    color: idx == root.current-index ? Theme.accent : (tab-ta.has-hover ? Theme.text-primary : Theme.text-secondary);
+                    vertical-alignment: center;
+                }
+            }
+
+            if idx == root.current-index : Rectangle {
+                x: 4px;
+                y: parent.height - 2px;
+                width: parent.width - 8px;
+                height: 2px;
+                border-radius: 1px;
+                background: Theme.accent;
+            }
+        }
+    }
+}
+
+export component FieldModePills inherits Rectangle {
+    in property <int> mode: 1; // 0 = value, 1 = keep, 2 = clear
+    in property <bool> compact: false;
+    in property <bool> enabled: true;
+    callback mode-changed(int);
+
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    preferred-width: root.compact ? 43px : 71px;
+    min-width: self.preferred-width;
+    height: 20px;
+
+    HorizontalLayout {
+        spacing: 3px;
+
+        keep-pill := Rectangle {
+            width: root.compact ? 20px : 34px;
+            height: 20px;
+            border-radius: 3px;
+            background: !root.enabled ? transparent
+                : root.mode == 1 ? Theme.accent-soft
+                : keep-ta.has-hover ? Theme.bg-hover
+                : transparent;
+            opacity: root.enabled ? 1.0 : 0.45;
+            animate background { duration: 150ms; }
+
+            keep-ta := TouchArea {
+                enabled: root.enabled;
+                mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+                clicked => {
+                    if root.enabled {
+                        root.mode-changed(1);
+                    }
+                }
+            }
+
+            if root.compact : Image {
+                width: 12px;
+                height: 12px;
+                image-fit: contain;
+                source: @image-url("../assets/icons/undo-2.svg");
+                colorize: root.mode == 1 ? Theme.accent
+                    : (keep-ta.has-hover && root.enabled) ? Theme.text-primary
+                    : Theme.text-muted;
+            }
+
+            if !root.compact : Text {
+                width: 100%;
+                height: 100%;
+                text: "保留";
+                font-family: Theme.font-family;
+                font-size: Theme.font-xs;
+                font-weight: root.mode == 1 ? 600 : 400;
+                color: root.mode == 1 ? Theme.accent
+                    : (keep-ta.has-hover && root.enabled) ? Theme.text-primary
+                    : Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        clear-pill := Rectangle {
+            width: root.compact ? 20px : 34px;
+            height: 20px;
+            border-radius: 3px;
+            background: !root.enabled ? transparent
+                : (root.mode == 2 || clear-ta.has-hover) ? Theme.danger-soft
+                : transparent;
+            opacity: root.enabled ? 1.0 : 0.45;
+            animate background { duration: 150ms; }
+
+            clear-ta := TouchArea {
+                enabled: root.enabled;
+                mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+                clicked => {
+                    if root.enabled {
+                        root.mode-changed(root.mode == 2 ? 1 : 2);
+                    }
+                }
+            }
+
+            if root.compact : Image {
+                width: 12px;
+                height: 12px;
+                image-fit: contain;
+                source: @image-url("../assets/icons/eraser.svg");
+                colorize: (root.mode == 2 || (clear-ta.has-hover && root.enabled))
+                    ? Theme.danger
+                    : Theme.text-muted;
+            }
+
+            if !root.compact : Text {
+                width: 100%;
+                height: 100%;
+                text: "置空";
+                font-family: Theme.font-family;
+                font-size: Theme.font-xs;
+                font-weight: root.mode == 2 ? 600 : 400;
+                color: (root.mode == 2 || (clear-ta.has-hover && root.enabled))
+                    ? Theme.danger
+                    : Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+export component TagFieldInput inherits Rectangle {
+    in-out property <string> text;
+    in property <int> mode: 1; // 0 = value, 1 = keep, 2 = clear
+    in property <bool> mixed: false;
+    in property <string> placeholder;
+    in property <bool> monospace: false;
+    in property <bool> compact-actions: false;
+    in property <bool> enabled: true;
+    out property <bool> has-focus: input.has-focus;
+    callback edited(string);
+    callback accepted(string);
+    callback mode-changed(int);
+
+    private property <string> overlay-text:
+        root.mode == 2 ? (root.compact-actions ? "<将置空>" : "<将置空 · 保存时清除>")
+        : (root.mode == 1 && root.mixed) ? (root.compact-actions ? "<保留>" : "<保留原属性>")
+        : root.placeholder;
+
+    private property <color> overlay-color:
+        root.mode == 2 ? Theme.danger
+        : (root.mode == 1 && root.mixed) ? Theme.accent
+        : Theme.text-muted;
+
+    height: 30px;
+    preferred-width: 140px;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    border-radius: Theme.r-sm;
+    border-width: 1px;
+    border-color: root.mode == 2 ? (input.has-focus ? Theme.danger : Theme.danger.with-alpha(0.65))
+        : (root.mode == 1 && root.mixed) ? (input.has-focus ? Theme.accent : Theme.accent.with-alpha(0.35))
+        : root.mode == 0 ? (input.has-focus ? Theme.accent : Theme.warning.with-alpha(0.55))
+        : (input.has-focus ? Theme.accent : Theme.border);
+    background: !root.enabled ? Theme.bg-surface-alt
+        : root.mode == 2 ? Theme.danger-soft
+        : (root.mode == 1 && root.mixed) ? Theme.bg-surface-alt
+        : Theme.bg-input;
+    clip: true;
+    forward-focus: input;
+
+    animate background, border-color { duration: 150ms; }
+
+    HorizontalLayout {
+        padding-left: Theme.sp-sm;
+        padding-right: 4px;
+        spacing: 4px;
+
+        viewport := Rectangle {
+            clip: true;
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+
+            TouchArea {
+                enabled: root.enabled;
+                mouse-cursor: root.enabled ? MouseCursor.text : MouseCursor.default;
+                clicked => {
+                    input.focus();
+                }
+            }
+
+            Text {
+                width: 100%;
+                height: 100%;
+                vertical-alignment: center;
+                text: (root.text == "" && input.preedit-text == "") ? root.overlay-text : "";
+                font-family: root.monospace ? Theme.mono-family : Theme.font-family;
+                font-size: Theme.font-sm;
+                color: root.overlay-color;
+                overflow: elide;
+            }
+
+            input := TextInput {
+                property <length> computed-x;
+
+                x: min(0px, max(parent.width - self.width - self.text-cursor-width, self.computed-x));
+                width: max(parent.width - self.text-cursor-width, self.preferred-width);
+                height: 100%;
+                vertical-alignment: center;
+                single-line: true;
+                text <=> root.text;
+                enabled: root.enabled;
+                font-family: root.monospace ? Theme.mono-family : Theme.font-family;
+                font-size: Theme.font-sm;
+                color: root.enabled ? Theme.text-primary : Theme.text-muted;
+                selection-background-color: Theme.accent;
+                selection-foreground-color: Theme.accent-fg;
+
+                cursor-position-changed(cpos) => {
+                    if cpos.x + self.computed-x < 4px {
+                        self.computed-x = -cpos.x + 4px;
+                    } else if cpos.x + self.computed-x > parent.width - 4px - self.text-cursor-width {
+                        self.computed-x = parent.width - cpos.x - 4px - self.text-cursor-width;
+                    }
+                }
+
+                edited => {
+                    root.edited(self.text);
+                }
+
+                accepted => {
+                    root.accepted(self.text);
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+
+            Rectangle {
+                width: 1px;
+                height: 16px;
+                background: Theme.border;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+
+            FieldModePills {
+                mode: root.mode;
+                compact: root.compact-actions;
+                enabled: root.enabled;
+                mode-changed(m) => {
+                    root.mode-changed(m);
+                }
+            }
+        }
+    }
+}
+

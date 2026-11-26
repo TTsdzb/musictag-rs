@@ -1,0 +1,12 @@
+id = "example-custom-js"
+name = "自定义 JS 插件示例"
+version = "1.0.0"
+description = "MusicTag Native QuickJS 音源插件开发模板（演示 MusicTagHost.httpGet、搜索、详情、歌词与封面接口）"
+entry = "source.js"
+enabled = false
+
+[capabilities]
+combo = true
+lyrics = true
+cover = true
+key163 = false

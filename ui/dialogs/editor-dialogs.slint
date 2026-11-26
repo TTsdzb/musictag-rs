@@ -1,0 +1,1285 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import {
+    ActiveDialog,
+    AppState,
+    AppLogic,
+} from "../state.slint";
+import {
+    ActionButton,
+    CheckboxItem,
+    DialogOverlay,
+    IconButton,
+    RadioItem,
+    SectionHeader,
+    StatusBadge,
+    TabBar,
+    TextAreaBox,
+    TextInputBox,
+    ToolbarDivider,
+} from "../components/primitives.slint";
+
+component ParamLegendChip inherits Rectangle {
+    in property <string> token;
+    in property <string> label;
+
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    height: 26px;
+    border-radius: Theme.r-sm;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: Theme.bg-panel;
+
+    HorizontalLayout {
+        padding-left: 6px;
+        padding-right: 6px;
+        spacing: 6px;
+
+        Text {
+            text: root.token;
+            font-family: Theme.mono-family;
+            font-size: Theme.font-xs;
+            font-weight: 700;
+            color: Theme.accent;
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+        }
+
+        Text {
+            text: root.label;
+            font-family: Theme.font-family;
+            font-size: Theme.font-xs;
+            color: Theme.text-primary;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+    }
+}
+
+export component LyricEditorDialog inherits Rectangle {
+    width: 100%;
+    height: 100%;
+
+    private property <bool> has-track:
+        AppState.selected-index >= 0 && AppState.selected-index < AppState.tracks.length;
+    private property <string> track-summary:
+        root.has-track
+            ? "\{AppState.tracks[AppState.selected-index].artist} - \{AppState.tracks[AppState.selected-index].title}"
+            : "";
+
+    DialogOverlay {
+        title: "编辑歌词";
+        icon: @image-url("../assets/icons/file-edit.svg");
+        has-icon: true;
+        dialog-width: 820px;
+        dialog-height: 600px;
+        body-padding: Theme.sp-lg;
+        body-spacing: Theme.sp-sm;
+        close => {
+            AppLogic.close-dialog();
+        }
+
+        // Compact 2-row toolbar
+        Rectangle {
+            horizontal-stretch: 1;
+            vertical-stretch: 0;
+            border-radius: Theme.r-md;
+            border-width: 1px;
+            border-color: Theme.border;
+            background: Theme.bg-surface-alt;
+
+            VerticalLayout {
+                padding: 6px;
+                spacing: 4px;
+
+                HorizontalLayout {
+                    spacing: 4px;
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/upload.svg");
+                        label: "导入Lrc";
+                        clicked => {
+                            AppLogic.lyric-action("import-lrc");
+                        }
+                    }
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/download.svg");
+                        label: "另存Lrc";
+                        clicked => {
+                            AppLogic.lyric-action("save-lrc");
+                        }
+                    }
+
+                    ToolbarDivider { }
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/clock.svg");
+                        label: "格式化时间轴";
+                        clicked => {
+                            AppLogic.lyric-action("reformat-timetag");
+                        }
+                    }
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/eraser.svg");
+                        label: "删除时间轴";
+                        clicked => {
+                            AppLogic.lyric-action("remove-timetag");
+                        }
+                    }
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/sliders-horizontal.svg");
+                        label: "调整时间轴";
+                        clicked => {
+                            AppLogic.open-dialog(ActiveDialog.adjust-timetag);
+                        }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    StatusBadge {
+                        text: "LRC [mm:ss.xx]";
+                        kind: "accent";
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: Theme.border;
+                }
+
+                HorizontalLayout {
+                    spacing: 4px;
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/tag.svg");
+                        label: "删除头部标签";
+                        clicked => {
+                            AppLogic.lyric-action("delete-head-tag");
+                        }
+                    }
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/trash-2.svg");
+                        label: "删除空白行";
+                        clicked => {
+                            AppLogic.lyric-action("delete-blank-lines");
+                        }
+                    }
+
+                    ToolbarDivider { }
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/replace.svg");
+                        label: "查找/替换";
+                        clicked => {
+                            AppLogic.open-dialog(ActiveDialog.find-replace);
+                        }
+                    }
+
+                    ToolbarDivider { }
+
+                    IconButton {
+                        compact: true;
+                        icon: @image-url("../assets/icons/undo-2.svg");
+                        label: "重置";
+                        clicked => {
+                            AppLogic.lyric-action("reset");
+                        }
+                    }
+
+                    if root.has-track : Text {
+                        text: root.track-summary;
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                        horizontal-alignment: right;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        // Monospace lyric editor
+        TextAreaBox {
+            monospace: true;
+            text <=> AppState.lyric-editor-text;
+            placeholder: "在此输入或编辑 LRC 歌词文本，支持 [mm:ss.xx] 双语同时间戳格式...";
+            vertical-stretch: 1;
+        }
+
+        // Bottom bar
+        HorizontalLayout {
+            vertical-stretch: 0;
+            spacing: Theme.sp-sm;
+
+            StatusBadge {
+                text: "UTF-8 · 同时间戳原文/译文";
+                kind: "neutral";
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+
+            ActionButton {
+                text: "取消";
+                variant: "secondary";
+                clicked => {
+                    AppLogic.close-dialog();
+                }
+            }
+
+            ActionButton {
+                text: "确定";
+                icon: @image-url("../assets/icons/check.svg");
+                has-icon: true;
+                variant: "primary";
+                clicked => {
+                    AppLogic.lyric-action("apply");
+                }
+            }
+        }
+    }
+}
+
+export component AdjustTimetagDialog inherits Rectangle {
+    width: 100%;
+    height: 100%;
+
+    private property <int> offset-ms:
+        AppState.adjust-offset-ms.is-float()
+            ? Math.round(AppState.adjust-offset-ms.to-float())
+            : 0;
+
+    pure function pad2(v: int) -> string {
+        return v < 10 ? "0\{v}" : "\{v}";
+    }
+
+    pure function format-ts(base-ms: int, delta-ms: int) -> string {
+        let clamped = max(0, base-ms + delta-ms);
+        let total-cs: int = Math.round(clamped / 10);
+        let mins: int = Math.floor(total-cs / 6000);
+        let rem-cs: int = Math.mod(total-cs, 6000);
+        let secs: int = Math.floor(rem-cs / 100);
+        let cs: int = Math.mod(rem-cs, 100);
+        return "[\{root.pad2(mins)}:\{root.pad2(secs)}.\{root.pad2(cs)}]";
+    }
+
+    DialogOverlay {
+        title: "调整时间轴";
+        icon: @image-url("../assets/icons/clock.svg");
+        has-icon: true;
+        dialog-width: 460px;
+        dialog-height: 320px;
+        body-padding: Theme.sp-lg;
+        body-spacing: Theme.sp-sm;
+        close => {
+            AppLogic.close-dialog();
+        }
+
+        // Offset input
+        HorizontalLayout {
+            vertical-stretch: 0;
+            spacing: Theme.sp-sm;
+
+            Text {
+                text: "平移偏移量:";
+                font-family: Theme.font-family;
+                font-size: Theme.font-sm;
+                color: Theme.text-primary;
+                vertical-alignment: center;
+            }
+
+            TextInputBox {
+                text <=> AppState.adjust-offset-ms;
+                monospace: true;
+                placeholder: "500";
+                width: 100px;
+                horizontal-stretch: 0;
+                accepted => {
+                    AppLogic.lyric-action("shift-timetag");
+                }
+            }
+
+            Text {
+                text: "毫秒 (正数延后 / 负数提前)";
+                font-family: Theme.font-family;
+                font-size: Theme.font-xs;
+                color: Theme.text-secondary;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+        }
+
+        // Quick preset buttons
+        HorizontalLayout {
+            vertical-stretch: 0;
+            spacing: Theme.sp-sm;
+
+            ActionButton {
+                text: "-500ms";
+                variant: "secondary";
+                clicked => {
+                    AppState.adjust-offset-ms = "-500";
+                }
+            }
+
+            ActionButton {
+                text: "-100ms";
+                variant: "secondary";
+                clicked => {
+                    AppState.adjust-offset-ms = "-100";
+                }
+            }
+
+            ActionButton {
+                text: "+100ms";
+                variant: "secondary";
+                clicked => {
+                    AppState.adjust-offset-ms = "100";
+                }
+            }
+
+            ActionButton {
+                text: "+500ms";
+                variant: "secondary";
+                clicked => {
+                    AppState.adjust-offset-ms = "500";
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+        }
+
+        // 3-line timestamp before/after preview
+        Rectangle {
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+            border-radius: Theme.r-md;
+            border-width: 1px;
+            border-color: Theme.border;
+            background: Theme.bg-surface-alt;
+            clip: true;
+
+            VerticalLayout {
+                padding: Theme.sp-sm;
+                spacing: 5px;
+                alignment: center;
+
+                HorizontalLayout {
+                    spacing: Theme.sp-sm;
+
+                    Text {
+                        text: "调整前/后预览";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+
+                    StatusBadge {
+                        text: root.offset-ms >= 0 ? "+\{root.offset-ms} ms" : "\{root.offset-ms} ms";
+                        kind: "accent";
+                    }
+                }
+
+                // Preview line 1
+                HorizontalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "[00:01.08]";
+                        font-family: Theme.mono-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-muted;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "→";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.format-ts(1080, root.offset-ms);
+                        font-family: Theme.mono-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.accent;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "考えたってわからないし";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                // Preview line 2
+                HorizontalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "[00:03.06]";
+                        font-family: Theme.mono-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-muted;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "→";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.format-ts(3060, root.offset-ms);
+                        font-family: Theme.mono-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.accent;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "青空の下、君を待った";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                // Preview line 3
+                HorizontalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "[00:06.15]";
+                        font-family: Theme.mono-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-muted;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "→";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.format-ts(6150, root.offset-ms);
+                        font-family: Theme.mono-family;
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: Theme.accent;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "風が吹いた正午、昼下がり";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-xs;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        // Footer
+        HorizontalLayout {
+            vertical-stretch: 0;
+            spacing: Theme.sp-sm;
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+
+            ActionButton {
+                text: "取消";
+                variant: "secondary";
+                clicked => {
+                    AppLogic.close-dialog();
+                }
+            }
+
+            ActionButton {
+                text: "确定";
+                icon: @image-url("../assets/icons/check.svg");
+                has-icon: true;
+                variant: "primary";
+                clicked => {
+                    AppLogic.lyric-action("shift-timetag");
+                }
+            }
+        }
+    }
+}
+
+export component FindReplaceDialog inherits Rectangle {
+    width: 100%;
+    height: 100%;
+
+    DialogOverlay {
+        title: "查找/替换";
+        icon: @image-url("../assets/icons/replace.svg");
+        has-icon: true;
+        dialog-width: 480px;
+        dialog-height: 280px;
+        body-padding: Theme.sp-lg;
+        body-spacing: Theme.sp-md;
+        close => {
+            AppLogic.close-dialog();
+        }
+
+        GridLayout {
+            vertical-stretch: 0;
+            spacing-horizontal: Theme.sp-sm;
+            spacing-vertical: Theme.sp-sm;
+
+            Row {
+                Text {
+                    text: "查找内容:";
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-sm;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                    horizontal-stretch: 0;
+                }
+
+                TextInputBox {
+                    text <=> AppState.find-text;
+                    placeholder: "输入要查找的文本";
+                    horizontal-stretch: 1;
+                    accepted => {
+                        AppLogic.trigger-action("find-next");
+                    }
+                }
+            }
+
+            Row {
+                Text {
+                    text: "替换为:";
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-sm;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                    horizontal-stretch: 0;
+                }
+
+                TextInputBox {
+                    text <=> AppState.replace-text;
+                    placeholder: "输入替换后的文本";
+                    horizontal-stretch: 1;
+                    accepted => {
+                        AppLogic.trigger-action("find-replace");
+                    }
+                }
+            }
+
+            Row {
+                Rectangle {
+                    horizontal-stretch: 0;
+                    vertical-stretch: 0;
+                    width: 0px;
+                    height: 0px;
+                }
+
+                CheckboxItem {
+                    label: "区分大小写";
+                    checked <=> AppState.find-match-case;
+                }
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+        }
+
+        // Action buttons row
+        HorizontalLayout {
+            vertical-stretch: 0;
+            spacing: 6px;
+            alignment: end;
+
+            ActionButton {
+                text: "查找上一个";
+                variant: "secondary";
+                clicked => {
+                    AppLogic.trigger-action("find-prev");
+                }
+            }
+
+            ActionButton {
+                text: "查找下一个";
+                variant: "secondary";
+                clicked => {
+                    AppLogic.trigger-action("find-next");
+                }
+            }
+
+            ActionButton {
+                text: "替换";
+                variant: "secondary";
+                clicked => {
+                    AppLogic.trigger-action("replace-one");
+                }
+            }
+
+            ActionButton {
+                text: "全部替换";
+                variant: "primary";
+                clicked => {
+                    AppLogic.trigger-action("find-replace");
+                }
+            }
+
+            ActionButton {
+                text: "关闭";
+                variant: "secondary";
+                clicked => {
+                    AppLogic.close-dialog();
+                }
+            }
+        }
+    }
+}
+
+export component FilenameRelDialog inherits Rectangle {
+    width: 100%;
+    height: 100%;
+
+    DialogOverlay {
+        title: "文件名相关批量处理";
+        icon: @image-url("../assets/icons/file-text.svg");
+        has-icon: true;
+        dialog-width: 860px;
+        dialog-height: 620px;
+        body-padding: Theme.sp-lg;
+        body-spacing: Theme.sp-sm;
+        close => {
+            AppLogic.close-dialog();
+        }
+
+        // Top 操作模式 group
+        Rectangle {
+            horizontal-stretch: 1;
+            vertical-stretch: 0;
+            border-radius: Theme.r-md;
+            border-width: 1px;
+            border-color: Theme.border;
+            background: Theme.bg-surface-alt;
+            clip: true;
+
+            VerticalLayout {
+                SectionHeader {
+                    title: "操作模式";
+
+                    StatusBadge {
+                        text: AppState.filename-mode == 0 ? "文件名 → 标签" : "标签 → 重命名文件";
+                        kind: "accent";
+                    }
+                }
+
+                VerticalLayout {
+                    padding: Theme.sp-sm;
+                    spacing: 4px;
+
+                    HorizontalLayout {
+                        spacing: Theme.sp-lg;
+                        alignment: start;
+
+                        RadioItem {
+                            label: "从文件名中匹配信息更改标签";
+                            selected: AppState.filename-mode == 0;
+                            clicked => {
+                                AppState.filename-mode = 0;
+                            }
+                        }
+
+                        RadioItem {
+                            label: "重命名文件";
+                            selected: AppState.filename-mode == 1;
+                            clicked => {
+                                AppState.filename-mode = 1;
+                            }
+                        }
+                    }
+
+                    CheckboxItem {
+                        label: "重命名相关 Lrc 文件和图片文件";
+                        checked <=> AppState.filename-rename-extra;
+                    }
+                }
+            }
+        }
+
+        // Mode tabs
+        TabBar {
+            tabs: ["模板", "正则表达式"];
+            current-index <=> AppState.filename-rel-tab-index;
+        }
+
+        // Tab 0: 模板
+        if AppState.filename-rel-tab-index == 0 : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Theme.sp-sm;
+
+            // Top split: preset radios + parameter legend
+            HorizontalLayout {
+                vertical-stretch: 0;
+                spacing: Theme.sp-md;
+
+                // Preset patterns
+                Rectangle {
+                    horizontal-stretch: 1;
+                    border-radius: Theme.r-md;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    background: Theme.bg-surface-alt;
+
+                    VerticalLayout {
+                        padding: Theme.sp-sm;
+                        spacing: 4px;
+
+                        Text {
+                            text: "预设匹配/命名模板";
+                            font-family: Theme.font-family;
+                            font-size: Theme.font-xs;
+                            font-weight: 600;
+                            color: Theme.text-secondary;
+                        }
+
+                        RadioItem {
+                            label: "%artist% - %title%";
+                            selected: AppState.filename-pattern-index == 0;
+                            clicked => {
+                                AppState.filename-pattern-index = 0;
+                            }
+                        }
+
+                        RadioItem {
+                            label: "%track%. %title%";
+                            selected: AppState.filename-pattern-index == 1;
+                            clicked => {
+                                AppState.filename-pattern-index = 1;
+                            }
+                        }
+
+                        RadioItem {
+                            label: "%title% - %artist%";
+                            selected: AppState.filename-pattern-index == 2;
+                            clicked => {
+                                AppState.filename-pattern-index = 2;
+                            }
+                        }
+
+                        RadioItem {
+                            label: "%track% - %artist% - %title%";
+                            selected: AppState.filename-pattern-index == 3;
+                            clicked => {
+                                AppState.filename-pattern-index = 3;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: Theme.sp-sm;
+
+                            RadioItem {
+                                label: "自定义:";
+                                selected: AppState.filename-pattern-index == 4;
+                                clicked => {
+                                    AppState.filename-pattern-index = 4;
+                                }
+                            }
+
+                            TextInputBox {
+                                text <=> AppState.filename-custom-pattern;
+                                monospace: true;
+                                enabled: AppState.filename-pattern-index == 4;
+                                placeholder: "%artist% - %title%";
+                                horizontal-stretch: 1;
+                            }
+                        }
+                    }
+                }
+
+                // @0..@8 parameter legend
+                Rectangle {
+                    width: 390px;
+                    horizontal-stretch: 0;
+                    border-radius: Theme.r-md;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    background: Theme.bg-surface-alt;
+
+                    VerticalLayout {
+                        padding: Theme.sp-sm;
+                        spacing: 6px;
+
+                        Text {
+                            text: "模板参数说明 (@0..@8)";
+                            font-family: Theme.font-family;
+                            font-size: Theme.font-xs;
+                            font-weight: 600;
+                            color: Theme.text-secondary;
+                        }
+
+                        GridLayout {
+                            spacing-horizontal: 6px;
+                            spacing-vertical: 6px;
+
+                            Row {
+                                ParamLegendChip { token: "@0"; label: "无用途"; }
+                                ParamLegendChip { token: "@1"; label: "标题"; }
+                                ParamLegendChip { token: "@2"; label: "艺术家"; }
+                            }
+                            Row {
+                                ParamLegendChip { token: "@3"; label: "专辑"; }
+                                ParamLegendChip { token: "@4"; label: "碟号"; }
+                                ParamLegendChip { token: "@5"; label: "音轨号"; }
+                            }
+                            Row {
+                                ParamLegendChip { token: "@6"; label: "年份"; }
+                                ParamLegendChip { token: "@7"; label: "注释"; }
+                                ParamLegendChip { token: "@8"; label: "专辑艺术家"; }
+                            }
+                        }
+
+                        Text {
+                            text: "支持 %title% 命名变量或 @0..@8 位置参数进行匹配与重命名";
+                            font-family: Theme.font-family;
+                            font-size: Theme.font-xs;
+                            color: Theme.text-muted;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+
+            // Live preview table
+            Rectangle {
+                horizontal-stretch: 1;
+                vertical-stretch: 1;
+                border-radius: Theme.r-md;
+                border-width: 1px;
+                border-color: Theme.border;
+                background: Theme.bg-input;
+                clip: true;
+
+                VerticalLayout {
+                    width: 100%;
+                    height: 100%;
+
+                    // Table header
+                    Rectangle {
+                        height: 28px;
+                        vertical-stretch: 0;
+                        background: Theme.bg-surface-alt;
+
+                        HorizontalLayout {
+                            padding-left: Theme.sp-sm;
+                            padding-right: Theme.sp-sm;
+                            spacing: Theme.sp-sm;
+
+                            Text {
+                                text: "原名称";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-xs;
+                                font-weight: 600;
+                                color: Theme.text-secondary;
+                                vertical-alignment: center;
+                                preferred-width: 0px;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+
+                            Text {
+                                text: "目标结果";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-xs;
+                                font-weight: 600;
+                                color: Theme.text-secondary;
+                                vertical-alignment: center;
+                                preferred-width: 0px;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+
+                            Text {
+                                width: 150px;
+                                horizontal-stretch: 0;
+                                text: "状态";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-xs;
+                                font-weight: 600;
+                                color: Theme.text-secondary;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1px;
+                        background: Theme.border;
+                        vertical-stretch: 0;
+                    }
+
+                    fn-sv := ScrollView {
+                        horizontal-stretch: 1;
+                        vertical-stretch: 1;
+
+                        VerticalLayout {
+                            width: fn-sv.visible-width;
+                            alignment: start;
+
+                            for item[idx] in AppState.filename-previews : Rectangle {
+                                horizontal-stretch: 1;
+                                height: 30px;
+                                background: Math.mod(idx, 2) == 0 ? Theme.bg-panel : Theme.bg-surface-alt;
+
+                                HorizontalLayout {
+                                    padding-left: Theme.sp-sm;
+                                    padding-right: Theme.sp-sm;
+                                    spacing: Theme.sp-sm;
+
+                                    Text {
+                                        text: item.before;
+                                        font-family: Theme.font-family;
+                                        font-size: Theme.font-xs;
+                                        color: Theme.text-secondary;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                        preferred-width: 0px;
+                                        horizontal-stretch: 1;
+                                    }
+
+                                    Text {
+                                        text: item.after;
+                                        font-family: Theme.font-family;
+                                        font-size: Theme.font-xs;
+                                        color: Theme.text-primary;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                        preferred-width: 0px;
+                                        horizontal-stretch: 1;
+                                    }
+
+                                    HorizontalLayout {
+                                        width: 150px;
+                                        horizontal-stretch: 0;
+                                        alignment: start;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            StatusBadge {
+                                                text: item.status;
+                                                kind: item.status == "就绪" ? "success" : "warning";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tab 1: 正则表达式
+        if AppState.filename-rel-tab-index == 1 : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Theme.sp-md;
+
+            // Regex input row
+            Rectangle {
+                horizontal-stretch: 1;
+                vertical-stretch: 0;
+                border-radius: Theme.r-md;
+                border-width: 1px;
+                border-color: Theme.border;
+                background: Theme.bg-surface-alt;
+
+                HorizontalLayout {
+                    padding: Theme.sp-sm;
+                    spacing: Theme.sp-sm;
+
+                    Text {
+                        text: "正则表达式:";
+                        font-family: Theme.font-family;
+                        font-size: Theme.font-sm;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+
+                    TextInputBox {
+                        text <=> AppState.filename-regex-input;
+                        monospace: true;
+                        placeholder: "^(\\d*)\\. (.*) - (.*)$";
+                        horizontal-stretch: 1;
+                    }
+
+                    ActionButton {
+                        text: "清空";
+                        icon: @image-url("../assets/icons/eraser.svg");
+                        has-icon: true;
+                        variant: "secondary";
+                        clicked => {
+                            AppState.filename-regex-input = "";
+                        }
+                    }
+                }
+            }
+
+            // Capture group mapping table + MusicTag example box
+            HorizontalLayout {
+                vertical-stretch: 1;
+                spacing: Theme.sp-md;
+
+                // Capture group mapping table
+                Rectangle {
+                    horizontal-stretch: 1;
+                    vertical-stretch: 1;
+                    border-radius: Theme.r-md;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    background: Theme.bg-input;
+                    clip: true;
+
+                    VerticalLayout {
+                        width: 100%;
+                        height: 100%;
+
+                        SectionHeader {
+                            title: "捕获组字段映射 (\{AppState.regex-groups.length})";
+                            subtitle: "将正则括号捕获组映射到对应音频标签";
+                        }
+
+                        Rectangle {
+                            height: 28px;
+                            vertical-stretch: 0;
+                            background: Theme.bg-surface-alt;
+
+                            HorizontalLayout {
+                                padding-left: Theme.sp-sm;
+                                padding-right: Theme.sp-sm;
+                                spacing: Theme.sp-sm;
+
+                                Text {
+                                    width: 84px;
+                                    horizontal-stretch: 0;
+                                    text: "组号";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-xs;
+                                    font-weight: 600;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: "匹配字段";
+                                    font-family: Theme.font-family;
+                                    font-size: Theme.font-xs;
+                                    font-weight: 600;
+                                    color: Theme.text-secondary;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            height: 1px;
+                            background: Theme.border;
+                            vertical-stretch: 0;
+                        }
+
+                        rg-sv := ScrollView {
+                            horizontal-stretch: 1;
+                            vertical-stretch: 1;
+
+                            VerticalLayout {
+                                width: rg-sv.visible-width;
+                                alignment: start;
+
+                                for grp[idx] in AppState.regex-groups : Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 34px;
+                                    background: Math.mod(idx, 2) == 0 ? Theme.bg-panel : Theme.bg-surface-alt;
+
+                                    HorizontalLayout {
+                                        padding-left: Theme.sp-sm;
+                                        padding-right: Theme.sp-sm;
+                                        spacing: Theme.sp-sm;
+
+                                        HorizontalLayout {
+                                            width: 84px;
+                                            horizontal-stretch: 0;
+                                            alignment: start;
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                StatusBadge {
+                                                    text: "组 #\{grp.group-index}";
+                                                    kind: "accent";
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            text: grp.target-field;
+                                            font-family: Theme.mono-family;
+                                            font-size: Theme.font-sm;
+                                            color: Theme.text-primary;
+                                            vertical-alignment: center;
+                                            overflow: elide;
+                                            horizontal-stretch: 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // MusicTag example box
+                Rectangle {
+                    width: 370px;
+                    horizontal-stretch: 0;
+                    vertical-stretch: 1;
+                    border-radius: Theme.r-md;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    background: Theme.bg-surface-alt;
+                    clip: true;
+
+                    VerticalLayout {
+                        width: 100%;
+                        height: 100%;
+
+                        SectionHeader {
+                            title: "正则匹配示例";
+                            subtitle: "参考格式说明";
+                        }
+
+                        VerticalLayout {
+                            padding: Theme.sp-md;
+                            spacing: Theme.sp-sm;
+                            vertical-stretch: 1;
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                border-radius: Theme.r-sm;
+                                border-width: 1px;
+                                border-color: Theme.border;
+                                background: Theme.bg-input;
+
+                                VerticalLayout {
+                                    padding: Theme.sp-sm;
+                                    spacing: 4px;
+
+                                    Text {
+                                        text: "文件名: 03. xxartist - xxtitle\n正则表达式: ^(\\d*)\\. (.*) - (.*)$\n捕获组: 1 - 音轨号, 2 - 艺术家, 3 - 标题";
+                                        font-family: Theme.mono-family;
+                                        font-size: Theme.font-xs;
+                                        color: Theme.text-primary;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: "说明: 使用圆括号 (...) 捕获需要提取的字段，并按序号 1, 2, 3 对应左侧映射表中的目标标签属性。";
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-xs;
+                                color: Theme.text-secondary;
+                                wrap: word-wrap;
+                            }
+
+                            Rectangle {
+                                vertical-stretch: 1;
+                            }
+
+                            HorizontalLayout {
+                                alignment: end;
+
+                                ActionButton {
+                                    text: "填入示例";
+                                    variant: "secondary";
+                                    clicked => {
+                                        AppState.filename-regex-input = "^(\\d*)\\. (.*) - (.*)$";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Footer
+        HorizontalLayout {
+            vertical-stretch: 0;
+            spacing: Theme.sp-sm;
+
+            Text {
+                text: AppState.filename-mode == 0
+                    ? "将从当前选中曲目的文件名解析标签并标记待保存"
+                    : "将按模板规则预览并批量重命名选中曲目文件";
+                font-family: Theme.font-family;
+                font-size: Theme.font-xs;
+                color: Theme.text-muted;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+
+            ActionButton {
+                text: "取消";
+                variant: "secondary";
+                clicked => {
+                    AppLogic.close-dialog();
+                }
+            }
+
+            ActionButton {
+                text: "确定";
+                icon: @image-url("../assets/icons/check.svg");
+                has-icon: true;
+                variant: "primary";
+                clicked => {
+                    AppLogic.trigger-action("apply-filename");
+                }
+            }
+        }
+    }
+}
